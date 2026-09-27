@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MoneyInput } from "@/components/shared/money-input";
 import { PageHeader } from "@/components/shared/page-header";
+import { DialogoPagamento } from "@/components/shared/payment-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useSaldoPedido, useSessaoAberta } from "@/hooks/use-caixa";
 import { useCategorias, useGruposAdicionais, useProdutos } from "@/hooks/use-catalogo";
 import { useMesasEstado, usePedidoMutations, useRealtimeSalao } from "@/hooks/use-pedidos";
 import { brl } from "@/lib/format";
@@ -84,10 +86,15 @@ function Pdv() {
   // Renovada a cada mudança do pedido: repetir o envio do mesmo carrinho
   // (clique duplo, rede instável) não cria um segundo pedido.
   const [requisicaoId, setRequisicaoId] = useState(() => crypto.randomUUID());
+  const [cobrando, setCobrando] = useState<string | null>(null);
 
-  // Nota: controla apenas a interface. Quem pode conceder desconto é
-  // decidido pela função `criar_pedido` no banco.
+  // Nota: controla apenas a interface. Quem pode conceder desconto e receber
+  // é decidido pelas funções `criar_pedido` e `registrar_pagamento` no banco.
   const podeDescontar = papel === "owner" || papel === "admin" || papel === "cashier";
+  const podeReceber = podeDescontar;
+  const sessao = useSessaoAberta({ habilitado: podeReceber });
+  const saldoCobranca = useSaldoPedido(cobrando);
+  const caixaAberto = podeReceber && !!sessao.data;
 
   const mesasComComanda = useMemo(
     () => (mesas.data ?? []).filter((m) => m.status === "OCUPADA" && m.comandaId),
@@ -142,7 +149,7 @@ function Pdv() {
   const remover = (chave: string) =>
     mudarPedido(() => setCarrinho((atual) => atual.filter((i) => i.chave !== chave)));
 
-  const enviar = () => {
+  const enviar = (receber: boolean) => {
     criar.mutate(
       {
         comandaId: destino?.comandaId ?? null,
@@ -156,10 +163,11 @@ function Pdv() {
         })),
       },
       {
-        onSuccess: () => {
+        onSuccess: (pedidoId) => {
           toast.success(
             destino ? `Pedido lançado na ${destino.nome}.` : "Pedido enviado para a cozinha.",
           );
+          if (receber) setCobrando(pedidoId);
           setCarrinho([]);
           setDesconto("");
           setComandaId("");
@@ -350,20 +358,58 @@ function Pdv() {
               <span>Total</span>
               <span className="tabular-nums">{brl(total)}</span>
             </div>
-            <Button
-              className="h-11 w-full"
-              disabled={!carrinho.length || criar.isPending}
-              onClick={enviar}
-            >
-              {criar.isPending
-                ? "Enviando…"
-                : destino
-                  ? `Lançar na ${destino.nome}`
-                  : "Enviar para a cozinha"}
-            </Button>
+            {!destino && caixaAberto ? (
+              <div className="grid gap-2">
+                <Button
+                  className="h-11 w-full"
+                  disabled={!carrinho.length || criar.isPending}
+                  onClick={() => enviar(true)}
+                >
+                  {criar.isPending ? "Enviando…" : "Enviar e receber"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!carrinho.length || criar.isPending}
+                  onClick={() => enviar(false)}
+                >
+                  Enviar e receber depois
+                </Button>
+              </div>
+            ) : (
+              <Button
+                className="h-11 w-full"
+                disabled={!carrinho.length || criar.isPending}
+                onClick={() => enviar(false)}
+              >
+                {criar.isPending
+                  ? "Enviando…"
+                  : destino
+                    ? `Lançar na ${destino.nome}`
+                    : "Enviar para a cozinha"}
+              </Button>
+            )}
+            {!destino && podeReceber && sessao.isSuccess && !sessao.data && (
+              <p className="text-xs text-muted-foreground">
+                O caixa está fechado: o pedido fica a receber até que ele seja aberto.
+              </p>
+            )}
           </div>
         </aside>
       </div>
+
+      <DialogoPagamento
+        aberto={!!cobrando && !!saldoCobranca.data}
+        aoMudarAberto={(aberto) => !aberto && setCobrando(null)}
+        aoDesistir={() => {
+          if (saldoCobranca.data) {
+            toast.info(`Pedido #${saldoCobranca.data.numero} ficou a receber no Caixa.`);
+          }
+        }}
+        titulo={`Receber pedido #${saldoCobranca.data?.numero ?? ""}`}
+        saldo={saldoCobranca.data?.saldo ?? 0}
+        alvo={cobrando ? { pedidoId: cobrando } : null}
+      />
 
       <DialogoAdicionais
         key={escolhendo?.id ?? "nenhum"}

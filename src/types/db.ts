@@ -154,6 +154,7 @@ export type Database = {
           pessoas: number | null;
           status: Database["public"]["Enums"]["status_comanda"];
           taxa_servico_percentual: number;
+          valor_pago: number;
         };
         Insert: {
           aberta_em?: string;
@@ -173,6 +174,7 @@ export type Database = {
           pessoas?: number | null;
           status?: Database["public"]["Enums"]["status_comanda"];
           taxa_servico_percentual?: number;
+          valor_pago?: number;
         };
         Update: {
           aberta_em?: string;
@@ -192,6 +194,7 @@ export type Database = {
           pessoas?: number | null;
           status?: Database["public"]["Enums"]["status_comanda"];
           taxa_servico_percentual?: number;
+          valor_pago?: number;
         };
         Relationships: [
           {
@@ -551,6 +554,59 @@ export type Database = {
           },
         ];
       };
+      itens_estoque: {
+        Row: {
+          ativo: boolean;
+          atualizado_em: string;
+          categoria: string | null;
+          client_request_id: string | null;
+          codigo: string | null;
+          criado_em: string;
+          empresa_id: string;
+          id: string;
+          nome: string;
+          quantidade: number;
+          quantidade_minima: number;
+          unidade: Database["public"]["Enums"]["unidade_estoque"];
+        };
+        Insert: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          categoria?: string | null;
+          client_request_id?: string | null;
+          codigo?: string | null;
+          criado_em?: string;
+          empresa_id: string;
+          id?: string;
+          nome: string;
+          quantidade?: number;
+          quantidade_minima?: number;
+          unidade?: Database["public"]["Enums"]["unidade_estoque"];
+        };
+        Update: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          categoria?: string | null;
+          client_request_id?: string | null;
+          codigo?: string | null;
+          criado_em?: string;
+          empresa_id?: string;
+          id?: string;
+          nome?: string;
+          quantidade?: number;
+          quantidade_minima?: number;
+          unidade?: Database["public"]["Enums"]["unidade_estoque"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "itens_estoque_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       itens_pedido: {
         Row: {
           adicionais_total: number;
@@ -713,6 +769,167 @@ export type Database = {
           },
         ];
       };
+      movimentacoes_caixa: {
+        Row: {
+          client_request_id: string | null;
+          criado_em: string;
+          descricao: string | null;
+          empresa_id: string;
+          id: string;
+          membro_id: string | null;
+          metodo: Database["public"]["Enums"]["metodo_pagamento"];
+          sessao_id: string;
+          tipo: Database["public"]["Enums"]["tipo_movimentacao_caixa"];
+          valor: number;
+        };
+        Insert: {
+          client_request_id?: string | null;
+          criado_em?: string;
+          descricao?: string | null;
+          empresa_id: string;
+          id?: string;
+          membro_id?: string | null;
+          metodo: Database["public"]["Enums"]["metodo_pagamento"];
+          sessao_id: string;
+          tipo: Database["public"]["Enums"]["tipo_movimentacao_caixa"];
+          valor: number;
+        };
+        Update: {
+          client_request_id?: string | null;
+          criado_em?: string;
+          descricao?: string | null;
+          empresa_id?: string;
+          id?: string;
+          membro_id?: string | null;
+          metodo?: Database["public"]["Enums"]["metodo_pagamento"];
+          sessao_id?: string;
+          tipo?: Database["public"]["Enums"]["tipo_movimentacao_caixa"];
+          valor?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_caixa_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_caixa_membro_id_fkey";
+            columns: ["membro_id"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_caixa_sessao_fk";
+            columns: ["empresa_id", "sessao_id"];
+            isOneToOne: false;
+            referencedRelation: "sessoes_caixa";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_caixa_sessao_fk";
+            columns: ["empresa_id", "sessao_id"];
+            isOneToOne: false;
+            referencedRelation: "sessoes_caixa_resumo";
+            referencedColumns: ["empresa_id", "id"];
+          },
+        ];
+      };
+      movimentacoes_estoque: {
+        Row: {
+          client_request_id: string | null;
+          criado_em: string;
+          empresa_id: string;
+          id: string;
+          item_id: string;
+          item_pedido_id: string | null;
+          membro_id: string | null;
+          motivo: string;
+          nome_membro: string | null;
+          observacao: string | null;
+          origem: Database["public"]["Enums"]["origem_movimentacao_estoque"];
+          pedido_id: string | null;
+          saldo_anterior: number;
+          saldo_resultante: number;
+          tipo: Database["public"]["Enums"]["tipo_movimentacao_estoque"];
+          variacao: number;
+        };
+        Insert: {
+          client_request_id?: string | null;
+          criado_em?: string;
+          empresa_id: string;
+          id?: string;
+          item_id: string;
+          item_pedido_id?: string | null;
+          membro_id?: string | null;
+          motivo: string;
+          nome_membro?: string | null;
+          observacao?: string | null;
+          origem?: Database["public"]["Enums"]["origem_movimentacao_estoque"];
+          pedido_id?: string | null;
+          saldo_anterior: number;
+          saldo_resultante: number;
+          tipo: Database["public"]["Enums"]["tipo_movimentacao_estoque"];
+          variacao: number;
+        };
+        Update: {
+          client_request_id?: string | null;
+          criado_em?: string;
+          empresa_id?: string;
+          id?: string;
+          item_id?: string;
+          item_pedido_id?: string | null;
+          membro_id?: string | null;
+          motivo?: string;
+          nome_membro?: string | null;
+          observacao?: string | null;
+          origem?: Database["public"]["Enums"]["origem_movimentacao_estoque"];
+          pedido_id?: string | null;
+          saldo_anterior?: number;
+          saldo_resultante?: number;
+          tipo?: Database["public"]["Enums"]["tipo_movimentacao_estoque"];
+          variacao?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_estoque_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_estoque_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_estoque_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque_status";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_estoque_membro_id_fkey";
+            columns: ["membro_id"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "movimentacoes_estoque_pedido_fk";
+            columns: ["empresa_id", "pedido_id"];
+            isOneToOne: false;
+            referencedRelation: "pedidos";
+            referencedColumns: ["empresa_id", "id"];
+          },
+        ];
+      };
       opcoes_adicionais: {
         Row: {
           ativo: boolean;
@@ -760,6 +977,143 @@ export type Database = {
             columns: ["empresa_id", "grupo_id"];
             isOneToOne: false;
             referencedRelation: "grupos_adicionais";
+            referencedColumns: ["empresa_id", "id"];
+          },
+        ];
+      };
+      pagamentos: {
+        Row: {
+          comanda_id: string | null;
+          criado_em: string;
+          criado_por: string | null;
+          empresa_id: string;
+          estornado_em: string | null;
+          estornado_por: string | null;
+          id: string;
+          lote_id: string;
+          metodo: Database["public"]["Enums"]["metodo_pagamento"];
+          motivo_estorno: string | null;
+          movimentacao_estorno_id: string | null;
+          movimentacao_id: string;
+          ordem: number;
+          pedido_id: string | null;
+          sessao_id: string;
+          status: Database["public"]["Enums"]["status_pagamento"];
+          troco: number | null;
+          valor: number;
+          valor_recebido: number | null;
+        };
+        Insert: {
+          comanda_id?: string | null;
+          criado_em?: string;
+          criado_por?: string | null;
+          empresa_id: string;
+          estornado_em?: string | null;
+          estornado_por?: string | null;
+          id?: string;
+          lote_id: string;
+          metodo: Database["public"]["Enums"]["metodo_pagamento"];
+          motivo_estorno?: string | null;
+          movimentacao_estorno_id?: string | null;
+          movimentacao_id: string;
+          ordem: number;
+          pedido_id?: string | null;
+          sessao_id: string;
+          status?: Database["public"]["Enums"]["status_pagamento"];
+          troco?: number | null;
+          valor: number;
+          valor_recebido?: number | null;
+        };
+        Update: {
+          comanda_id?: string | null;
+          criado_em?: string;
+          criado_por?: string | null;
+          empresa_id?: string;
+          estornado_em?: string | null;
+          estornado_por?: string | null;
+          id?: string;
+          lote_id?: string;
+          metodo?: Database["public"]["Enums"]["metodo_pagamento"];
+          motivo_estorno?: string | null;
+          movimentacao_estorno_id?: string | null;
+          movimentacao_id?: string;
+          ordem?: number;
+          pedido_id?: string | null;
+          sessao_id?: string;
+          status?: Database["public"]["Enums"]["status_pagamento"];
+          troco?: number | null;
+          valor?: number;
+          valor_recebido?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_comanda_fk";
+            columns: ["empresa_id", "comanda_id"];
+            isOneToOne: false;
+            referencedRelation: "comandas";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_comanda_fk";
+            columns: ["empresa_id", "comanda_id"];
+            isOneToOne: false;
+            referencedRelation: "comandas_resumo";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_criado_por_fkey";
+            columns: ["criado_por"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pagamentos_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pagamentos_estornado_por_fkey";
+            columns: ["estornado_por"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pagamentos_movimentacao_estorno_fk";
+            columns: ["empresa_id", "movimentacao_estorno_id"];
+            isOneToOne: false;
+            referencedRelation: "movimentacoes_caixa";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_movimentacao_fk";
+            columns: ["empresa_id", "movimentacao_id"];
+            isOneToOne: false;
+            referencedRelation: "movimentacoes_caixa";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_pedido_fk";
+            columns: ["empresa_id", "pedido_id"];
+            isOneToOne: false;
+            referencedRelation: "pedidos";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_sessao_fk";
+            columns: ["empresa_id", "sessao_id"];
+            isOneToOne: false;
+            referencedRelation: "sessoes_caixa";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "pagamentos_sessao_fk";
+            columns: ["empresa_id", "sessao_id"];
+            isOneToOne: false;
+            referencedRelation: "sessoes_caixa_resumo";
             referencedColumns: ["empresa_id", "id"];
           },
         ];
@@ -934,6 +1288,56 @@ export type Database = {
           },
         ];
       };
+      produto_insumos: {
+        Row: {
+          empresa_id: string;
+          item_id: string;
+          produto_id: string;
+          quantidade: number;
+        };
+        Insert: {
+          empresa_id: string;
+          item_id: string;
+          produto_id: string;
+          quantidade: number;
+        };
+        Update: {
+          empresa_id?: string;
+          item_id?: string;
+          produto_id?: string;
+          quantidade?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "produto_insumos_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "produto_insumos_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "produto_insumos_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque_status";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "produto_insumos_produto_fk";
+            columns: ["empresa_id", "produto_id"];
+            isOneToOne: false;
+            referencedRelation: "produtos";
+            referencedColumns: ["empresa_id", "id"];
+          },
+        ];
+      };
       produtos: {
         Row: {
           ativo: boolean;
@@ -1030,6 +1434,106 @@ export type Database = {
           },
         ];
       };
+      sessoes_caixa: {
+        Row: {
+          aberta_em: string;
+          aberta_por: string | null;
+          client_request_id: string | null;
+          diferenca: number | null;
+          dinheiro_esperado: number | null;
+          dinheiro_informado: number | null;
+          empresa_id: string;
+          fechada_em: string | null;
+          fechada_por: string | null;
+          id: string;
+          justificativa: string | null;
+          nome_abertura: string | null;
+          nome_fechamento: string | null;
+          numero: number;
+          observacao_abertura: string | null;
+          status: Database["public"]["Enums"]["status_sessao_caixa"];
+          terminal: string;
+          total_credito: number | null;
+          total_debito: number | null;
+          total_dinheiro: number | null;
+          total_estornos: number | null;
+          total_pix: number | null;
+          valor_inicial: number;
+        };
+        Insert: {
+          aberta_em?: string;
+          aberta_por?: string | null;
+          client_request_id?: string | null;
+          diferenca?: number | null;
+          dinheiro_esperado?: number | null;
+          dinheiro_informado?: number | null;
+          empresa_id: string;
+          fechada_em?: string | null;
+          fechada_por?: string | null;
+          id?: string;
+          justificativa?: string | null;
+          nome_abertura?: string | null;
+          nome_fechamento?: string | null;
+          numero: number;
+          observacao_abertura?: string | null;
+          status?: Database["public"]["Enums"]["status_sessao_caixa"];
+          terminal?: string;
+          total_credito?: number | null;
+          total_debito?: number | null;
+          total_dinheiro?: number | null;
+          total_estornos?: number | null;
+          total_pix?: number | null;
+          valor_inicial: number;
+        };
+        Update: {
+          aberta_em?: string;
+          aberta_por?: string | null;
+          client_request_id?: string | null;
+          diferenca?: number | null;
+          dinheiro_esperado?: number | null;
+          dinheiro_informado?: number | null;
+          empresa_id?: string;
+          fechada_em?: string | null;
+          fechada_por?: string | null;
+          id?: string;
+          justificativa?: string | null;
+          nome_abertura?: string | null;
+          nome_fechamento?: string | null;
+          numero?: number;
+          observacao_abertura?: string | null;
+          status?: Database["public"]["Enums"]["status_sessao_caixa"];
+          terminal?: string;
+          total_credito?: number | null;
+          total_debito?: number | null;
+          total_dinheiro?: number | null;
+          total_estornos?: number | null;
+          total_pix?: number | null;
+          valor_inicial?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sessoes_caixa_aberta_por_fkey";
+            columns: ["aberta_por"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sessoes_caixa_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sessoes_caixa_fechada_por_fkey";
+            columns: ["fechada_por"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       setores_cozinha: {
         Row: {
           ativo: boolean;
@@ -1087,6 +1591,7 @@ export type Database = {
           pedidos: number | null;
           pedidos_em_producao: number | null;
           pessoas: number | null;
+          saldo: number | null;
           status: Database["public"]["Enums"]["status_comanda"] | null;
           subtotal: number | null;
           taxa_servico: number | null;
@@ -1125,6 +1630,53 @@ export type Database = {
           },
         ];
       };
+      itens_estoque_status: {
+        Row: {
+          ativo: boolean | null;
+          categoria: string | null;
+          codigo: string | null;
+          empresa_id: string | null;
+          id: string | null;
+          nome: string | null;
+          quantidade: number | null;
+          quantidade_minima: number | null;
+          status: Database["public"]["Enums"]["status_estoque"] | null;
+          unidade: Database["public"]["Enums"]["unidade_estoque"] | null;
+        };
+        Insert: {
+          ativo?: boolean | null;
+          categoria?: string | null;
+          codigo?: string | null;
+          empresa_id?: string | null;
+          id?: string | null;
+          nome?: string | null;
+          quantidade?: number | null;
+          quantidade_minima?: number | null;
+          status?: never;
+          unidade?: Database["public"]["Enums"]["unidade_estoque"] | null;
+        };
+        Update: {
+          ativo?: boolean | null;
+          categoria?: string | null;
+          codigo?: string | null;
+          empresa_id?: string | null;
+          id?: string | null;
+          nome?: string | null;
+          quantidade?: number | null;
+          quantidade_minima?: number | null;
+          status?: never;
+          unidade?: Database["public"]["Enums"]["unidade_estoque"] | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "itens_estoque_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       mesas_estado: {
         Row: {
           aberta_em: string | null;
@@ -1141,6 +1693,7 @@ export type Database = {
           status: Database["public"]["Enums"]["status_mesa"] | null;
           subtotal: number | null;
           total: number | null;
+          valor_pago: number | null;
         };
         Relationships: [
           {
@@ -1152,8 +1705,53 @@ export type Database = {
           },
         ];
       };
+      sessoes_caixa_resumo: {
+        Row: {
+          aberta_em: string | null;
+          diferenca: number | null;
+          dinheiro_esperado: number | null;
+          dinheiro_informado: number | null;
+          empresa_id: string | null;
+          fechada_em: string | null;
+          id: string | null;
+          justificativa: string | null;
+          movimentacoes: number | null;
+          nome_abertura: string | null;
+          nome_fechamento: string | null;
+          numero: number | null;
+          observacao_abertura: string | null;
+          sangrias: number | null;
+          status: Database["public"]["Enums"]["status_sessao_caixa"] | null;
+          suprimentos: number | null;
+          terminal: string | null;
+          total_credito: number | null;
+          total_debito: number | null;
+          total_dinheiro: number | null;
+          total_estornos: number | null;
+          total_pix: number | null;
+          valor_inicial: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sessoes_caixa_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
+      abrir_caixa: {
+        Args: {
+          p_client_request_id?: string;
+          p_empresa: string;
+          p_observacao?: string;
+          p_valor_inicial: number;
+        };
+        Returns: string;
+      };
       abrir_comanda: {
         Args: {
           p_client_request_id?: string;
@@ -1230,6 +1828,19 @@ export type Database = {
         };
         Returns: string;
       };
+      criar_item_estoque: {
+        Args: {
+          p_categoria?: string;
+          p_client_request_id?: string;
+          p_codigo?: string;
+          p_empresa: string;
+          p_nome: string;
+          p_quantidade_minima?: number;
+          p_saldo_inicial?: number;
+          p_unidade: Database["public"]["Enums"]["unidade_estoque"];
+        };
+        Returns: string;
+      };
       criar_pedido: {
         Args: {
           p_acrescimo?: number;
@@ -1244,11 +1855,27 @@ export type Database = {
         };
         Returns: string;
       };
+      definir_ficha_tecnica: {
+        Args: { p_insumos: Json; p_produto: string };
+        Returns: undefined;
+      };
       definir_membro_ativo: {
         Args: { p_ativo: boolean; p_membro: string };
         Returns: undefined;
       };
       encerrar_comanda: { Args: { p_comanda: string }; Returns: undefined };
+      estornar_pagamento: {
+        Args: { p_motivo: string; p_pagamento: string };
+        Returns: undefined;
+      };
+      fechar_caixa: {
+        Args: {
+          p_dinheiro_informado: number;
+          p_justificativa?: string;
+          p_sessao: string;
+        };
+        Returns: undefined;
+      };
       listar_membros: {
         Args: { p_empresa: string };
         Returns: {
@@ -1261,6 +1888,28 @@ export type Database = {
           sou_eu: boolean;
           usuario_id: string;
         }[];
+      };
+      movimentar_caixa: {
+        Args: {
+          p_client_request_id?: string;
+          p_descricao: string;
+          p_empresa: string;
+          p_tipo: Database["public"]["Enums"]["tipo_movimentacao_caixa"];
+          p_valor: number;
+        };
+        Returns: string;
+      };
+      movimentar_estoque: {
+        Args: {
+          p_client_request_id?: string;
+          p_empresa: string;
+          p_item: string;
+          p_motivo: string;
+          p_observacao?: string;
+          p_quantidade: number;
+          p_tipo: Database["public"]["Enums"]["tipo_movimentacao_estoque"];
+        };
+        Returns: string;
       };
       painel_cozinha: {
         Args: { p_empresa: string };
@@ -1286,10 +1935,88 @@ export type Database = {
         }[];
       };
       pedir_conta: { Args: { p_comanda: string }; Returns: undefined };
+      registrar_pagamento: {
+        Args: {
+          p_client_request_id?: string;
+          p_comanda?: string;
+          p_empresa: string;
+          p_partes: Json;
+          p_pedido?: string;
+        };
+        Returns: {
+          saldo: number;
+          troco: number;
+        }[];
+      };
+      relatorio_estoque: {
+        Args: { p_empresa: string; p_fim: string; p_inicio: string };
+        Returns: {
+          itens: number;
+          movimentacoes: number;
+          origem: Database["public"]["Enums"]["origem_movimentacao_estoque"];
+          tipo: Database["public"]["Enums"]["tipo_movimentacao_estoque"];
+        }[];
+      };
+      relatorio_formas_pagamento: {
+        Args: { p_empresa: string; p_fim: string; p_inicio: string };
+        Returns: {
+          metodo: Database["public"]["Enums"]["metodo_pagamento"];
+          quantidade: number;
+          valor: number;
+        }[];
+      };
+      relatorio_produtos: {
+        Args: {
+          p_empresa: string;
+          p_fim: string;
+          p_inicio: string;
+          p_limite?: number;
+        };
+        Returns: {
+          faturamento: number;
+          nome: string;
+          produto_id: string;
+          quantidade: number;
+        }[];
+      };
+      relatorio_resumo: {
+        Args: { p_empresa: string; p_fim: string; p_inicio: string };
+        Returns: {
+          cancelados: number;
+          descontos: number;
+          faturamento: number;
+          pedidos: number;
+          taxa_servico: number;
+          ticket_medio: number;
+          valor_cancelado: number;
+        }[];
+      };
+      relatorio_vendas_diarias: {
+        Args: { p_empresa: string; p_fim: string; p_inicio: string };
+        Returns: {
+          dia: string;
+          faturamento: number;
+          pedidos: number;
+        }[];
+      };
       remover_item_pedido: { Args: { p_item: string }; Returns: undefined };
       renomear_membro: {
         Args: { p_membro: string; p_nome_exibicao: string };
         Returns: undefined;
+      };
+      resumo_dashboard: {
+        Args: { p_empresa: string };
+        Returns: {
+          em_preparo: number;
+          estoque_alerta: number;
+          faturamento: number;
+          mesas_ocupadas: number;
+          mesas_total: number;
+          na_fila: number;
+          pedidos: number;
+          prontos: number;
+          ticket_medio: number;
+        }[];
       };
       transferir_comanda: {
         Args: { p_comanda: string; p_mesa_destino: string };
@@ -1298,15 +2025,22 @@ export type Database = {
     };
     Enums: {
       metodo_pagamento: "DINHEIRO" | "PIX" | "DEBITO" | "CREDITO";
+      origem_movimentacao_estoque: "MANUAL" | "PEDIDO";
       origem_pedido: "BALCAO" | "MESA";
       papel_usuario: "owner" | "admin" | "cashier" | "waiter" | "kitchen";
       status_comanda: "OPEN" | "PAYMENT_PENDING" | "PAID" | "CLOSED" | "CANCELLED";
       status_convite: "PENDENTE" | "ACEITO" | "CANCELADO";
+      status_estoque: "NORMAL" | "BAIXO" | "SEM_ESTOQUE";
       status_financeiro_pedido: "UNPAID" | "PARTIALLY_PAID" | "PAID" | "REFUNDED";
       status_mesa: "LIVRE" | "OCUPADA" | "AGUARDANDO_PAGAMENTO";
       status_operacional_pedido:
         "DRAFT" | "CONFIRMED" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
-      tipo_sequencia: "PEDIDO" | "COMANDA";
+      status_pagamento: "CONFIRMADO" | "ESTORNADO";
+      status_sessao_caixa: "OPEN" | "CLOSED";
+      tipo_movimentacao_caixa: "ABERTURA" | "VENDA" | "SUPRIMENTO" | "SANGRIA" | "ESTORNO";
+      tipo_movimentacao_estoque: "ENTRADA" | "SAIDA" | "AJUSTE";
+      tipo_sequencia: "PEDIDO" | "COMANDA" | "CAIXA";
+      unidade_estoque: "UN" | "KG" | "G" | "L" | "ML" | "CX" | "PCT";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1429,10 +2163,12 @@ export const Constants = {
   public: {
     Enums: {
       metodo_pagamento: ["DINHEIRO", "PIX", "DEBITO", "CREDITO"],
+      origem_movimentacao_estoque: ["MANUAL", "PEDIDO"],
       origem_pedido: ["BALCAO", "MESA"],
       papel_usuario: ["owner", "admin", "cashier", "waiter", "kitchen"],
       status_comanda: ["OPEN", "PAYMENT_PENDING", "PAID", "CLOSED", "CANCELLED"],
       status_convite: ["PENDENTE", "ACEITO", "CANCELADO"],
+      status_estoque: ["NORMAL", "BAIXO", "SEM_ESTOQUE"],
       status_financeiro_pedido: ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED"],
       status_mesa: ["LIVRE", "OCUPADA", "AGUARDANDO_PAGAMENTO"],
       status_operacional_pedido: [
@@ -1443,7 +2179,12 @@ export const Constants = {
         "DELIVERED",
         "CANCELLED",
       ],
-      tipo_sequencia: ["PEDIDO", "COMANDA"],
+      status_pagamento: ["CONFIRMADO", "ESTORNADO"],
+      status_sessao_caixa: ["OPEN", "CLOSED"],
+      tipo_movimentacao_caixa: ["ABERTURA", "VENDA", "SUPRIMENTO", "SANGRIA", "ESTORNO"],
+      tipo_movimentacao_estoque: ["ENTRADA", "SAIDA", "AJUSTE"],
+      tipo_sequencia: ["PEDIDO", "COMANDA", "CAIXA"],
+      unidade_estoque: ["UN", "KG", "G", "L", "ML", "CX", "PCT"],
     },
   },
 } as const;

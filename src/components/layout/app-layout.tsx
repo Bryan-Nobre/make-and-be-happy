@@ -32,12 +32,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useSessaoAberta } from "@/hooks/use-caixa";
 import { mensagemDeErro } from "@/lib/erros";
 import { PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 import { useEmpresa } from "@/providers/empresa";
 import { sair } from "@/services/auth";
-import { useArvon } from "@/store/arvon";
 
 type NavItem = {
   key: ModuloKey;
@@ -225,9 +225,21 @@ function PermissionDenied({ label }: { label: string }) {
   );
 }
 
+function SeloCaixa() {
+  const sessao = useSessaoAberta();
+  if (!sessao.isSuccess) return null;
+
+  return (
+    <Link to="/caixa" aria-label="Ir para o Caixa">
+      <StatusBadge tone={sessao.data ? "success" : "neutral"}>
+        {sessao.data ? "Caixa aberto" : "Caixa fechado"}
+      </StatusBadge>
+    </Link>
+  );
+}
+
 function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }) {
   const { empresa, podeVer } = useEmpresa();
-  const { cash } = useArvon();
   const [open, setOpen] = useState(false);
   const allowed = podeVer(modulo);
   const label = NAV.find((n) => n.key === modulo)?.label ?? modulo;
@@ -240,9 +252,6 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <NavList />
-        </div>
-        <div className="border-t px-4 py-3 text-xs text-muted-foreground">
-          Módulos em migração ainda usam dados de exemplo.
         </div>
       </aside>
 
@@ -271,9 +280,7 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
             <p className="hidden text-xs text-muted-foreground sm:block">{label}</p>
           </div>
 
-          <StatusBadge tone={cash.status === "OPEN" ? "success" : "neutral"}>
-            {cash.status === "OPEN" ? "Caixa aberto" : "Caixa fechado"}
-          </StatusBadge>
+          {empresa && podeVer("caixa") && <SeloCaixa />}
 
           <UserMenu />
         </header>

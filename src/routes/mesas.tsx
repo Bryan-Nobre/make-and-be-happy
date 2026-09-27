@@ -3,20 +3,14 @@ import { LayoutGrid, Users } from "lucide-react";
 import { useState } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
+import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { DialogoPagamento } from "@/components/shared/payment-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,7 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
+import { useSessaoAberta } from "@/hooks/use-caixa";
 import {
   useComanda,
   useComandaMutations,
@@ -147,7 +141,12 @@ function CartaoMesa({ mesa, aoSelecionar }: { mesa: MesaEstado; aoSelecionar: ()
           <span className="text-sm text-muted-foreground">Livre</span>
         ) : (
           <>
-            <span className="block text-sm font-semibold tabular-nums">{brl(mesa.total)}</span>
+            <span className="block text-sm font-semibold tabular-nums">
+              {brl(mesa.total)}
+              {mesa.total > 0 && mesa.valorPago >= mesa.total && (
+                <span className="ml-1 text-xs font-medium text-success">· paga</span>
+              )}
+            </span>
             <span className="block text-xs text-muted-foreground">
               Comanda {mesa.comandaNumero}
               {mesa.abertaEm && ` · ${elapsed(mesa.abertaEm)}`}
@@ -253,11 +252,14 @@ function DetalheComanda({
   const acoes = useComandaMutations();
   const [destino, setDestino] = useState("");
   const [cancelandoComanda, setCancelandoComanda] = useState(false);
+  const [recebendo, setRecebendo] = useState(false);
 
   // Nota: estas verificações controlam apenas a interface. As funções do
   // banco validam o papel de quem chama em cada operação.
   const podeEncerrar = papel === "owner" || papel === "admin" || papel === "cashier";
+  const podeReceber = podeEncerrar;
   const podeCancelarComanda = papel === "owner" || papel === "admin";
+  const sessao = useSessaoAberta({ habilitado: podeReceber });
 
   if (comanda.isPending || pedidos.isPending) return <LoadingState label="Carregando comanda…" />;
   if (comanda.isError || pedidos.isError || !comanda.data) {
@@ -299,6 +301,18 @@ function DetalheComanda({
           <span>Total</span>
           <span className="tabular-nums">{brl(c.total)}</span>
         </div>
+        {c.valorPago > 0 && (
+          <>
+            <div className="flex justify-between text-success">
+              <span>Pago</span>
+              <span className="tabular-nums">{brl(c.valorPago)}</span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>Falta receber</span>
+              <span className="tabular-nums">{brl(saldo)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -328,12 +342,38 @@ function DetalheComanda({
             Liberar mesa
           </Button>
         )}
-        {saldo > 0 && (
+        {saldo > 0 && podeReceber && sessao.data && (
+          <Button className="h-11" onClick={() => setRecebendo(true)}>
+            Receber {brl(saldo)}
+          </Button>
+        )}
+        {saldo > 0 && podeReceber && sessao.isSuccess && !sessao.data && (
           <p className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
-            O recebimento da conta ({brl(saldo)}) será feito pelo Caixa.
+            Abra o caixa para receber esta conta.{" "}
+            <Link to="/caixa" className="font-medium text-primary underline">
+              Ir para o Caixa
+            </Link>
+          </p>
+        )}
+        {saldo > 0 && !podeReceber && (
+          <p className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+            O recebimento da conta ({brl(saldo)}) é feito por quem opera o caixa.
+          </p>
+        )}
+        {saldo === 0 && c.total > 0 && c.pedidosEmProducao > 0 && (
+          <p className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+            Conta paga. A mesa pode ser liberada quando todos os pedidos forem entregues.
           </p>
         )}
       </div>
+
+      <DialogoPagamento
+        aberto={recebendo}
+        aoMudarAberto={setRecebendo}
+        titulo={`Receber ${mesa.nome} · comanda ${c.numero}`}
+        saldo={saldo}
+        alvo={{ comandaId: c.id }}
+      />
 
       {c.status === "OPEN" && (
         <div className="flex gap-2">
@@ -469,83 +509,6 @@ function ListaPedidos({ pedidos }: { pedidos: PedidoDaComanda[] }) {
           );
         }}
       />
-    </>
-  );
-}
-
-function DialogoMotivo({
-  aberto,
-  titulo,
-  descricao,
-  confirmando,
-  aoFechar,
-  aoConfirmar,
-}: {
-  aberto: boolean;
-  titulo: string;
-  descricao: string;
-  confirmando: boolean;
-  aoFechar: () => void;
-  aoConfirmar: (motivo: string) => void;
-}) {
-  return (
-    <Dialog open={aberto} onOpenChange={(abrir) => !abrir && aoFechar()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{titulo}</DialogTitle>
-          <DialogDescription>{descricao}</DialogDescription>
-        </DialogHeader>
-        <FormularioMotivo confirmando={confirmando} aoFechar={aoFechar} aoConfirmar={aoConfirmar} />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Fica dentro do conteúdo do diálogo para o texto zerar sempre que ele fecha. */
-function FormularioMotivo({
-  confirmando,
-  aoFechar,
-  aoConfirmar,
-}: {
-  confirmando: boolean;
-  aoFechar: () => void;
-  aoConfirmar: (motivo: string) => void;
-}) {
-  const [motivo, setMotivo] = useState("");
-  const valido = motivo.trim().length >= 3;
-
-  return (
-    <>
-      <form
-        id="form-motivo"
-        className="space-y-1"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valido) aoConfirmar(motivo.trim());
-        }}
-      >
-        <Label htmlFor="motivo">Motivo</Label>
-        <Textarea
-          id="motivo"
-          value={motivo}
-          maxLength={300}
-          onChange={(e) => setMotivo(e.target.value)}
-          placeholder="Ex.: cliente desistiu"
-        />
-      </form>
-      <DialogFooter>
-        <Button variant="outline" onClick={aoFechar}>
-          Voltar
-        </Button>
-        <Button
-          type="submit"
-          form="form-motivo"
-          variant="destructive"
-          disabled={!valido || confirmando}
-        >
-          {confirmando ? "Cancelando…" : "Confirmar cancelamento"}
-        </Button>
-      </DialogFooter>
     </>
   );
 }

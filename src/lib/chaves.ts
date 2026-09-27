@@ -23,4 +23,26 @@ export const chaves = {
   pedidosDaComanda: (empresaId: string, comandaId: string) =>
     ["salao", empresaId, "pedidos", comandaId] as const,
   painelCozinha: (empresaId: string) => ["cozinha", empresaId] as const,
+
+  /** Prefixo de tudo que muda com o caixa (sessão, movimentações, pagamentos). */
+  caixa: (empresaId: string) => ["caixa", empresaId] as const,
+  sessaoAberta: (empresaId: string) => ["caixa", empresaId, "sessao-aberta"] as const,
+  fechamentos: (empresaId: string) => ["caixa", empresaId, "fechamentos"] as const,
+  movimentacoes: (empresaId: string, sessaoId: string) =>
+    ["caixa", empresaId, "movimentacoes", sessaoId] as const,
+  pagamentos: (empresaId: string, sessaoId: string) =>
+    ["caixa", empresaId, "pagamentos", sessaoId] as const,
+  pedidosAReceber: (empresaId: string) => ["caixa", empresaId, "a-receber"] as const,
+
+  /** Prefixo de tudo que muda com o saldo de estoque. Vendas também mexem nele. */
+  estoque: (empresaId: string) => ["estoque", empresaId] as const,
+  itensEstoque: (empresaId: string) => ["estoque", empresaId, "itens"] as const,
+  movimentacoesEstoque: (empresaId: string, itemId: string) =>
+    ["estoque", empresaId, "movimentacoes", itemId] as const,
+  fichaTecnica: (empresaId: string, produtoId: string) =>
+    ["estoque", empresaId, "ficha", produtoId] as const,
+
+  dashboard: (empresaId: string) => ["dashboard", empresaId] as const,
+  relatorios: (empresaId: string, inicio: string, fim: string) =>
+    ["relatorios", empresaId, inicio, fim] as const,
 };

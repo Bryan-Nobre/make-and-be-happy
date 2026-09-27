@@ -163,7 +163,7 @@ export function useComandaMutations() {
     executar: ({ comandaId, motivo }: { comandaId: string; motivo: string }) =>
       servico.cancelarComanda(comandaId, motivo),
     sucesso: "Comanda cancelada.",
-    invalidar: [...invalidar, chaves.painelCozinha(empresa.id)],
+    invalidar: [...invalidar, chaves.painelCozinha(empresa.id), chaves.estoque(empresa.id)],
   });
 
   return { abrir, pedirConta, transferir, encerrar, cancelar };
@@ -171,7 +171,13 @@ export function useComandaMutations() {
 
 export function usePedidoMutations() {
   const { empresa } = useEmpresaAtual();
-  const invalidar = [chaves.salao(empresa.id), chaves.painelCozinha(empresa.id)];
+  // Confirmar, alterar e cancelar pedidos baixa ou devolve estoque no banco.
+  const invalidar = [
+    chaves.salao(empresa.id),
+    chaves.painelCozinha(empresa.id),
+    chaves.estoque(empresa.id),
+    chaves.dashboard(empresa.id),
+  ];
 
   const criar = useMutacao({
     executar: (entrada: {

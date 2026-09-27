@@ -19,6 +19,7 @@ export type MesaEstado = {
   pessoas: number | null;
   abertaEm: string | null;
   total: number;
+  valorPago: number;
   pedidosEmProducao: number;
 };
 
@@ -102,7 +103,7 @@ export async function listarMesasEstado(empresaId: string): Promise<MesaEstado[]
   const { data, error } = await supabase
     .from("mesas_estado")
     .select(
-      "id, nome, lugares, status, comanda_id, comanda_numero, pessoas, aberta_em, total, pedidos_em_producao",
+      "id, nome, lugares, status, comanda_id, comanda_numero, pessoas, aberta_em, total, valor_pago, pedidos_em_producao",
     )
     .eq("empresa_id", empresaId)
     .eq("ativa", true)
@@ -121,6 +122,7 @@ export async function listarMesasEstado(empresaId: string): Promise<MesaEstado[]
     pessoas: m.pessoas,
     abertaEm: m.aberta_em,
     total: Number(m.total ?? 0),
+    valorPago: Number(m.valor_pago ?? 0),
     pedidosEmProducao: m.pedidos_em_producao ?? 0,
   }));
 }

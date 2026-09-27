@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Copy, ImageOff, Package, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { ClipboardList, Copy, ImageOff, Package, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
+import { DialogoFichaTecnica } from "@/components/shared/dialogo-ficha-tecnica";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -144,6 +145,7 @@ function AbaProdutos({
   const [form, setForm] = useState<Formulario | null>(null);
   const seletorImagem = useRef<HTMLInputElement>(null);
   const [produtoDaImagem, setProdutoDaImagem] = useState<string | null>(null);
+  const [produtoDaFicha, setProdutoDaFicha] = useState<{ id: string; nome: string } | null>(null);
 
   const termo = busca.trim().toLowerCase();
   const lista = produtos.filter(
@@ -280,6 +282,15 @@ function AbaProdutos({
                       <Button
                         size="icon"
                         variant="ghost"
+                        onClick={() => setProdutoDaFicha({ id: produto.id, nome: produto.nome })}
+                        aria-label={`Ficha técnica de ${produto.nome}`}
+                        title="Ficha técnica"
+                      >
+                        <ClipboardList className="size-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         onClick={() => duplicar.mutate(produto)}
                         aria-label={`Duplicar ${produto.nome}`}
                       >
@@ -307,6 +318,8 @@ function AbaProdutos({
           }
         }}
       />
+
+      <DialogoFichaTecnica produto={produtoDaFicha} aoFechar={() => setProdutoDaFicha(null)} />
 
       <Dialog open={form !== null} onOpenChange={(aberto) => !aberto && setForm(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">

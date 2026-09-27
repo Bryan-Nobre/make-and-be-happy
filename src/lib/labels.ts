@@ -1,5 +1,4 @@
 import type { Tone } from "@/components/shared/status-badge";
-import type { OrderStatus, PaymentMethod, TableStatus } from "@/data/types";
 import type { Database } from "@/types/db";
 
 type Enums = Database["public"]["Enums"];
@@ -32,25 +31,28 @@ export const STATUS_MESA: Record<Enums["status_mesa"], { label: string; tone: To
   AGUARDANDO_PAGAMENTO: { label: "Aguardando pagamento", tone: "warning" },
 };
 
-export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
-  DRAFT: { label: "Rascunho", tone: "neutral" },
-  CONFIRMED: { label: "Confirmado", tone: "info" },
-  PREPARING: { label: "Em preparo", tone: "warning" },
-  READY: { label: "Pronto", tone: "success" },
-  DELIVERED: { label: "Entregue", tone: "primary" },
-  COMPLETED: { label: "Finalizado", tone: "neutral" },
-  CANCELLED: { label: "Cancelado", tone: "danger" },
+export const TIPO_MOVIMENTACAO: Record<
+  Enums["tipo_movimentacao_caixa"],
+  { label: string; saida: boolean }
+> = {
+  ABERTURA: { label: "Abertura", saida: false },
+  VENDA: { label: "Venda", saida: false },
+  SUPRIMENTO: { label: "Suprimento", saida: false },
+  SANGRIA: { label: "Sangria", saida: true },
+  ESTORNO: { label: "Estorno", saida: true },
 };
 
-export const TABLE_STATUS: Record<TableStatus, { label: string; tone: Tone }> = {
-  LIVRE: { label: "Livre", tone: "success" },
-  OCUPADA: { label: "Ocupada", tone: "primary" },
-  AGUARDANDO_PAGAMENTO: { label: "Aguardando pagamento", tone: "warning" },
+export const STATUS_ESTOQUE: Record<Enums["status_estoque"], { label: string; tone: Tone }> = {
+  NORMAL: { label: "Normal", tone: "success" },
+  BAIXO: { label: "Baixo", tone: "warning" },
+  SEM_ESTOQUE: { label: "Sem estoque", tone: "danger" },
 };
 
-export const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  DINHEIRO: "Dinheiro",
-  PIX: "Pix",
-  DEBITO: "Débito",
-  CREDITO: "Crédito",
+export const TIPO_MOVIMENTACAO_ESTOQUE: Record<
+  Enums["tipo_movimentacao_estoque"],
+  { label: string; tone: Tone }
+> = {
+  ENTRADA: { label: "Entrada", tone: "success" },
+  SAIDA: { label: "Saída", tone: "danger" },
+  AJUSTE: { label: "Ajuste", tone: "info" },
 };

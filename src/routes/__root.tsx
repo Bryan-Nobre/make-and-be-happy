@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
-import { ArvonProvider } from "@/store/arvon";
 import { AuthProvider } from "@/providers/auth";
 import { EmpresaProvider } from "@/providers/empresa";
 import { Toaster } from "@/components/ui/sonner";
@@ -131,10 +130,8 @@ function RootComponent() {
       <AuthProvider>
         <EmpresaProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <ArvonProvider>
-            <Outlet />
-            <Toaster richColors position="top-right" />
-          </ArvonProvider>
+          <Outlet />
+          <Toaster richColors position="top-right" />
         </EmpresaProvider>
       </AuthProvider>
     </QueryClientProvider>
