@@ -177,7 +177,7 @@ const ArvonContext = createContext<Store | null>(null);
 
 export function ArvonProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => ({
-    currentUser: users[0],
+    currentUser: users[0]!,
     company: seedCompany,
     categories: seedCategories,
     addonGroups: seedAddonGroups,
