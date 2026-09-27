@@ -10,6 +10,8 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import { ArvonProvider } from "@/store/arvon";
+import { AuthProvider } from "@/providers/auth";
+import { EmpresaProvider } from "@/providers/empresa";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -80,13 +82,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ARVON FOOD — Gestão para restaurantes" },
-      { name: "description", content: "Sistema de gestão para restaurantes: PDV, mesas, cozinha, caixa e estoque." },
+      {
+        name: "description",
+        content: "Sistema de gestão para restaurantes: PDV, mesas, cozinha, caixa e estoque.",
+      },
       { name: "author", content: "ARVON FOOD" },
       { property: "og:title", content: "ARVON FOOD — Gestão para restaurantes" },
-      { property: "og:description", content: "Sistema de gestão para restaurantes: PDV, mesas, cozinha, caixa e estoque." },
+      {
+        property: "og:description",
+        content: "Sistema de gestão para restaurantes: PDV, mesas, cozinha, caixa e estoque.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-          ],
+    ],
     links: [
       {
         rel: "stylesheet",
@@ -120,11 +128,15 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <ArvonProvider>
-        <Outlet />
-        <Toaster richColors position="top-right" />
-      </ArvonProvider>
+      <AuthProvider>
+        <EmpresaProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <ArvonProvider>
+            <Outlet />
+            <Toaster richColors position="top-right" />
+          </ArvonProvider>
+        </EmpresaProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

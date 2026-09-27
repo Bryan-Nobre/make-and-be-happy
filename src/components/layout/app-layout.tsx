@@ -1,10 +1,12 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
   ChefHat,
   ClipboardList,
   LayoutDashboard,
   Lock,
+  LogOut,
   Menu,
   Package,
   Settings,
@@ -14,6 +16,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
+
+import { RotaProtegida } from "@/components/layout/rota-protegida";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,13 +32,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { StatusBadge } from "@/components/shared/status-badge";
-import type { ModuleKey } from "@/data/types";
+import { mensagemDeErro } from "@/lib/erros";
+import { PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
-import { ROLE_LABEL, useArvon } from "@/store/arvon";
+import { useEmpresa } from "@/providers/empresa";
+import { sair } from "@/services/auth";
+import { useArvon } from "@/store/arvon";
 
 type NavItem = {
-  key: ModuleKey;
+  key: ModuloKey;
   label: string;
   to: string;
   icon: typeof LayoutDashboard;
@@ -48,8 +56,20 @@ export const NAV: NavItem[] = [
   { key: "produtos", label: "Produtos", to: "/produtos", icon: Package, group: "Gestão" },
   { key: "estoque", label: "Estoque", to: "/estoque", icon: Boxes, group: "Gestão" },
   { key: "clientes", label: "Clientes", to: "/clientes", icon: Users, group: "Gestão" },
-  { key: "relatorios", label: "Relatórios", to: "/relatorios", icon: ClipboardList, group: "Gestão" },
-  { key: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "Gestão" },
+  {
+    key: "relatorios",
+    label: "Relatórios",
+    to: "/relatorios",
+    icon: ClipboardList,
+    group: "Gestão",
+  },
+  {
+    key: "configuracoes",
+    label: "Configurações",
+    to: "/configuracoes",
+    icon: Settings,
+    group: "Gestão",
+  },
 ];
 
 function Brand() {
@@ -67,7 +87,7 @@ function Brand() {
 }
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
-  const { can } = useArvon();
+  const { podeVer } = useEmpresa();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const groups: NavItem["group"][] = ["Operação", "Gestão"];
 
@@ -82,9 +102,8 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             </p>
             <ul className="flex flex-col gap-0.5">
               {items.map((item) => {
-                const allowed = can(item.key);
-                const active =
-                  item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                const allowed = podeVer(item.key);
+                const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
                 return (
                   <li key={item.key}>
                     <Link
@@ -119,43 +138,74 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function iniciais(nome: string) {
+  return nome
+    .split(" ")
+    .filter(Boolean)
+    .map((parte) => parte[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 function UserMenu() {
-  const { currentUser, users, setCurrentUser } = useArvon();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa } = useEmpresa();
+  const [saindo, setSaindo] = useState(false);
+
+  const sairDaConta = async () => {
+    setSaindo(true);
+    try {
+      await sair();
+      // Limpa o cache para não deixar dados de uma empresa visíveis na próxima sessão.
+      queryClient.clear();
+      void navigate({ to: "/login", replace: true });
+    } catch (erro) {
+      toast.error(mensagemDeErro(erro));
+    } finally {
+      setSaindo(false);
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-11 gap-2 px-2">
           <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-            {currentUser.name
-              .split(" ")
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join("")}
+            {iniciais(nomeUsuario)}
           </span>
           <span className="hidden text-left leading-tight sm:block">
-            <span className="block text-sm font-medium">{currentUser.name}</span>
+            <span className="block text-sm font-medium">{nomeUsuario}</span>
             <span className="block text-xs text-muted-foreground">
-              {ROLE_LABEL[currentUser.role]}
+              {papel ? PAPEL_LABEL[papel] : ""}
             </span>
           </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>Trocar perfil (demonstração)</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={currentUser.id} onValueChange={setCurrentUser}>
-          {users.map((u) => (
-            <DropdownMenuRadioItem key={u.id} value={u.id}>
-              <span className="flex flex-col">
-                <span className="text-sm">{u.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {ROLE_LABEL[u.role]}
-                </span>
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>Sair</DropdownMenuItem>
+        {vinculos.length > 1 && (
+          <>
+            <DropdownMenuLabel>Restaurante</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={empresa?.id ?? ""} onValueChange={selecionarEmpresa}>
+              {vinculos.map((vinculo) => (
+                <DropdownMenuRadioItem key={vinculo.empresa.id} value={vinculo.empresa.id}>
+                  <span className="flex flex-col">
+                    <span className="text-sm">{vinculo.empresa.nome}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {PAPEL_LABEL[vinculo.papel]}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuItem disabled={saindo} onSelect={() => void sairDaConta()}>
+          <LogOut className="size-4" aria-hidden="true" />
+          Sair
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -169,24 +219,18 @@ function PermissionDenied({ label }: { label: string }) {
       </span>
       <h2 className="mt-4 text-lg font-semibold">Acesso não permitido</h2>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Seu perfil atual não tem acesso ao módulo {label}. Peça a um administrador
-        para liberar ou troque de perfil no menu do usuário.
+        Seu perfil atual não tem acesso ao módulo {label}. Peça a um administrador para liberar.
       </p>
     </div>
   );
 }
 
-export function AppLayout({
-  module,
-  children,
-}: {
-  module: ModuleKey;
-  children: ReactNode;
-}) {
-  const { company, cash, can } = useArvon();
+function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }) {
+  const { empresa, podeVer } = useEmpresa();
+  const { cash } = useArvon();
   const [open, setOpen] = useState(false);
-  const allowed = can(module);
-  const label = NAV.find((n) => n.key === module)?.label ?? module;
+  const allowed = podeVer(modulo);
+  const label = NAV.find((n) => n.key === modulo)?.label ?? modulo;
 
   return (
     <div className="min-h-screen bg-background">
@@ -198,7 +242,7 @@ export function AppLayout({
           <NavList />
         </div>
         <div className="border-t px-4 py-3 text-xs text-muted-foreground">
-          Ambiente de demonstração com dados simulados.
+          Módulos em migração ainda usam dados de exemplo.
         </div>
       </aside>
 
@@ -223,7 +267,7 @@ export function AppLayout({
           </Sheet>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{company.name}</p>
+            <p className="truncate text-sm font-semibold">{empresa?.nome}</p>
             <p className="hidden text-xs text-muted-foreground sm:block">{label}</p>
           </div>
 
@@ -239,5 +283,13 @@ export function AppLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppLayout({ module, children }: { module: ModuloKey; children: ReactNode }) {
+  return (
+    <RotaProtegida>
+      <Chrome modulo={module}>{children}</Chrome>
+    </RotaProtegida>
   );
 }
