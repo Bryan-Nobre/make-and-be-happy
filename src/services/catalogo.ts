@@ -399,6 +399,12 @@ export async function salvarOpcaoAdicional(
   if (error) throw error;
 }
 
+export async function definirOpcaoAtiva(id: string, ativo: boolean): Promise<void> {
+  const { error } = await supabase.from("opcoes_adicionais").update({ ativo }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Só funciona enquanto a opção não tiver sido vendida (FK com RESTRICT). */
 export async function excluirOpcaoAdicional(id: string): Promise<void> {
   const { error } = await supabase.from("opcoes_adicionais").delete().eq("id", id);
   if (error) throw error;

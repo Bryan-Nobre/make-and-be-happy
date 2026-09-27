@@ -1,20 +1,45 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Users } from "lucide-react";
+import { LayoutGrid, Users } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+
 import { AppLayout } from "@/components/layout/app-layout";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { PaymentDialog } from "@/components/shared/payment-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type { RestaurantTable } from "@/data/types";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  useComanda,
+  useComandaMutations,
+  useMesasEstado,
+  usePedidoMutations,
+  usePedidosDaComanda,
+  useRealtimeSalao,
+} from "@/hooks/use-pedidos";
 import { brl, elapsed } from "@/lib/format";
-import { ORDER_STATUS, TABLE_STATUS } from "@/lib/labels";
+import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { orderTotal, useArvon } from "@/store/arvon";
+import { useEmpresaAtual } from "@/providers/empresa";
+import type { MesaEstado, PedidoDaComanda, StatusMesa } from "@/services/pedidos";
 
 export const Route = createFileRoute("/mesas")({
   head: () => ({
@@ -22,7 +47,10 @@ export const Route = createFileRoute("/mesas")({
       { title: "Mesas — ARVON FOOD" },
       { name: "description", content: "Mapa de mesas, comandas abertas e fechamento de conta." },
       { property: "og:title", content: "Mesas — ARVON FOOD" },
-      { property: "og:description", content: "Mapa de mesas, comandas abertas e fechamento de conta." },
+      {
+        property: "og:description",
+        content: "Mapa de mesas, comandas abertas e fechamento de conta.",
+      },
     ],
   }),
   component: () => (
@@ -32,136 +60,492 @@ export const Route = createFileRoute("/mesas")({
   ),
 });
 
-function Mesas() {
-  const { tables, orders, company, openTable, requestClose, releaseTable, transferTable, payOrder, cash } = useArvon();
-  const [selId, setSelId] = useState<string | null>(null);
-  const [people, setPeople] = useState(2);
-  const [paying, setPaying] = useState(false);
-  const [target, setTarget] = useState("");
-  const sel = tables.find((t) => t.id === selId) ?? null;
-  const tabOrders = (t: RestaurantTable) =>
-    orders.filter((o) => o.tableId === t.id && o.status !== "COMPLETED" && o.status !== "CANCELLED");
-  const subtotal = sel ? tabOrders(sel).reduce((s, o) => s + orderTotal(o), 0) : 0;
-  const fee = subtotal * (company.serviceFee / 100);
-  const total = subtotal + fee;
+const PEDIDO_CANCELAVEL = ["DRAFT", "CONFIRMED", "PREPARING"] as const;
 
-  const counts = {
-    LIVRE: tables.filter((t) => t.status === "LIVRE").length,
-    OCUPADA: tables.filter((t) => t.status === "OCUPADA").length,
-    AGUARDANDO_PAGAMENTO: tables.filter((t) => t.status === "AGUARDANDO_PAGAMENTO").length,
-  };
+function Mesas() {
+  useRealtimeSalao();
+  const mesas = useMesasEstado();
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+
+  const lista = mesas.data ?? [];
+  const selecionada = lista.find((m) => m.id === selecionadaId) ?? null;
+
+  const contagem = (status: StatusMesa) => lista.filter((m) => m.status === status).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Mesas" description="Toque em uma mesa para abrir, lançar pedidos ou fechar a conta." />
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(counts) as (keyof typeof counts)[]).map((k) => (
-          <StatusBadge key={k} tone={TABLE_STATUS[k].tone}>{TABLE_STATUS[k].label}: {counts[k]}</StatusBadge>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {tables.map((t) => {
-          const value = tabOrders(t).reduce((s, o) => s + orderTotal(o), 0);
-          return (
-            <button
-              key={t.id}
-              onClick={() => setSelId(t.id)}
-              className={cn(
-                "flex min-h-32 flex-col rounded-lg border-2 bg-card p-3 text-left transition-colors hover:border-primary",
-                t.status === "OCUPADA" && "border-primary/40 bg-primary-soft",
-                t.status === "AGUARDANDO_PAGAMENTO" && "border-warning/50 bg-warning-soft",
-              )}
-            >
-              <span className="text-lg font-bold">{t.name}</span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="size-3" aria-hidden="true" />{t.people ?? 0}/{t.seats}</span>
-              <span className="mt-auto pt-2">
-                {t.status === "LIVRE" ? (
-                  <span className="text-sm text-muted-foreground">Livre</span>
-                ) : (
-                  <>
-                    <span className="block text-sm font-semibold tabular-nums">{brl(value)}</span>
-                    <span className="block text-xs text-muted-foreground">Comanda {t.tabNumber} · {t.openedAt && elapsed(t.openedAt)}</span>
-                  </>
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <PageHeader
+        title="Mesas"
+        description="Toque em uma mesa para abrir a comanda, lançar pedidos ou pedir a conta."
+      />
 
-      <Sheet open={!!sel} onOpenChange={(o) => !o && setSelId(null)}>
+      {mesas.isPending ? (
+        <LoadingState label="Carregando mesas…" />
+      ) : mesas.isError ? (
+        <ErrorState
+          description="Não foi possível carregar as mesas."
+          onRetry={() => void mesas.refetch()}
+        />
+      ) : lista.length === 0 ? (
+        <EmptyState
+          icon={LayoutGrid}
+          title="Nenhuma mesa ativa"
+          description="Cadastre mesas em Configurações para usar o salão."
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(STATUS_MESA) as StatusMesa[]).map((status) => (
+              <StatusBadge key={status} tone={STATUS_MESA[status].tone}>
+                {STATUS_MESA[status].label}: {contagem(status)}
+              </StatusBadge>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {lista.map((m) => (
+              <CartaoMesa key={m.id} mesa={m} aoSelecionar={() => setSelecionadaId(m.id)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <Sheet open={!!selecionada} onOpenChange={(aberto) => !aberto && setSelecionadaId(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          {sel && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{sel.name}</SheetTitle>
-                <StatusBadge tone={TABLE_STATUS[sel.status].tone} className="w-fit">{TABLE_STATUS[sel.status].label}</StatusBadge>
-              </SheetHeader>
-              <div className="space-y-5 px-4 pb-6">
-                {sel.status === "LIVRE" ? (
-                  <div className="space-y-3">
-                    <Label htmlFor="ppl">Número de pessoas</Label>
-                    <Input id="ppl" type="number" min={1} max={sel.seats * 2} value={people} onChange={(e) => setPeople(Number(e.target.value))} />
-                    <Button className="h-11 w-full" onClick={() => { openTable(sel.id, people); toast.success(`${sel.name} aberta.`); }}>Abrir mesa</Button>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">Comanda {sel.tabNumber} · {sel.people} pessoas · aberta há {sel.openedAt && elapsed(sel.openedAt)}</p>
-                    <ul className="divide-y rounded-md border">
-                      {tabOrders(sel).length === 0 && <li className="p-3 text-sm text-muted-foreground">Nenhum pedido lançado.</li>}
-                      {tabOrders(sel).map((o) => (
-                        <li key={o.id} className="p-3 text-sm">
-                          <div className="flex justify-between"><span className="font-medium">#{o.number}</span><StatusBadge tone={ORDER_STATUS[o.status].tone}>{ORDER_STATUS[o.status].label}</StatusBadge></div>
-                          {o.items.map((i) => <p key={i.id} className="text-muted-foreground">{i.quantity}× {i.name}</p>)}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{brl(subtotal)}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Serviço ({company.serviceFee}%)</span><span className="tabular-nums">{brl(fee)}</span></div>
-                      <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="tabular-nums">{brl(total)}</span></div>
-                    </div>
-                    <div className="grid gap-2">
-                      <Button asChild variant="outline" className="h-11"><Link to="/pdv">Lançar pedido no PDV</Link></Button>
-                      {sel.status === "OCUPADA" && <Button variant="outline" className="h-11" onClick={() => requestClose(sel.id)}>Pedir conta</Button>}
-                      <Button className="h-11" onClick={() => {
-                        if (cash.status !== "OPEN") return toast.error("Abra o caixa antes de receber.");
-                        if (total === 0) { releaseTable(sel.id); toast.success("Mesa liberada."); return setSelId(null); }
-                        setPaying(true);
-                      }}>Fechar conta</Button>
-                    </div>
-                    <div className="flex gap-2">
-                      <select value={target} onChange={(e) => setTarget(e.target.value)} className="h-10 flex-1 rounded-md border bg-background px-3 text-sm" aria-label="Mesa de destino">
-                        <option value="">Transferir para…</option>
-                        {tables.filter((t) => t.status === "LIVRE").map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                      <Button variant="outline" disabled={!target} onClick={() => { transferTable(sel.id, target); setSelId(target); setTarget(""); toast.success("Mesa transferida."); }}>Transferir</Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
+          {selecionada && (
+            <PainelMesa
+              key={selecionada.id}
+              mesa={selecionada}
+              mesas={lista}
+              aoTrocarMesa={setSelecionadaId}
+              aoFechar={() => setSelecionadaId(null)}
+            />
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
 
-      <PaymentDialog
-        open={paying}
-        onOpenChange={setPaying}
-        total={total}
-        onConfirm={(p) => {
-          if (!sel) return;
-          const list = tabOrders(sel);
-          list.forEach((o, idx) => {
-            const share = orderTotal(o) * (1 + company.serviceFee / 100);
-            payOrder(o.id, [{ ...p, amount: share, received: idx === 0 ? p.received : undefined, change: idx === 0 ? p.change : undefined }]);
-          });
-          releaseTable(sel.id);
-          toast.success(`Conta fechada: ${brl(total)}`);
-          setPaying(false);
-          setSelId(null);
+function CartaoMesa({ mesa, aoSelecionar }: { mesa: MesaEstado; aoSelecionar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={aoSelecionar}
+      className={cn(
+        "flex min-h-32 flex-col rounded-lg border-2 bg-card p-3 text-left transition-colors hover:border-primary",
+        mesa.status === "OCUPADA" && "border-primary/40 bg-primary-soft",
+        mesa.status === "AGUARDANDO_PAGAMENTO" && "border-warning/50 bg-warning-soft",
+      )}
+    >
+      <span className="text-lg font-bold">{mesa.nome}</span>
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Users className="size-3" aria-hidden="true" />
+        {mesa.pessoas ?? 0}/{mesa.lugares}
+      </span>
+      <span className="mt-auto pt-2">
+        {mesa.status === "LIVRE" ? (
+          <span className="text-sm text-muted-foreground">Livre</span>
+        ) : (
+          <>
+            <span className="block text-sm font-semibold tabular-nums">{brl(mesa.total)}</span>
+            <span className="block text-xs text-muted-foreground">
+              Comanda {mesa.comandaNumero}
+              {mesa.abertaEm && ` · ${elapsed(mesa.abertaEm)}`}
+            </span>
+            {mesa.pedidosEmProducao > 0 && (
+              <span className="block text-xs text-muted-foreground">
+                {mesa.pedidosEmProducao} em produção
+              </span>
+            )}
+          </>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function PainelMesa({
+  mesa,
+  mesas,
+  aoTrocarMesa,
+  aoFechar,
+}: {
+  mesa: MesaEstado;
+  mesas: MesaEstado[];
+  aoTrocarMesa: (mesaId: string) => void;
+  aoFechar: () => void;
+}) {
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>{mesa.nome}</SheetTitle>
+        <SheetDescription className="sr-only">Detalhes da mesa e da comanda</SheetDescription>
+        <StatusBadge tone={STATUS_MESA[mesa.status].tone} className="w-fit">
+          {STATUS_MESA[mesa.status].label}
+        </StatusBadge>
+      </SheetHeader>
+      <div className="space-y-5 px-4 pb-6">
+        {mesa.comandaId ? (
+          <DetalheComanda
+            comandaId={mesa.comandaId}
+            mesa={mesa}
+            mesas={mesas}
+            aoTrocarMesa={aoTrocarMesa}
+            aoFechar={aoFechar}
+          />
+        ) : (
+          <AbrirComanda mesa={mesa} />
+        )}
+      </div>
+    </>
+  );
+}
+
+function AbrirComanda({ mesa }: { mesa: MesaEstado }) {
+  const { abrir } = useComandaMutations();
+  const [pessoas, setPessoas] = useState(2);
+  // Uma por abertura de painel: um segundo clique durante a mesma tentativa
+  // devolve a comanda já criada em vez de falhar.
+  const [requisicaoId] = useState(() => crypto.randomUUID());
+
+  const valido = Number.isInteger(pessoas) && pessoas >= 1 && pessoas <= 99;
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valido) abrir.mutate({ mesaId: mesa.id, pessoas, requisicaoId });
+      }}
+    >
+      <Label htmlFor="pessoas">Número de pessoas</Label>
+      <Input
+        id="pessoas"
+        type="number"
+        min={1}
+        max={99}
+        value={pessoas}
+        onChange={(e) => setPessoas(Number(e.target.value))}
+      />
+      <Button type="submit" className="h-11 w-full" disabled={!valido || abrir.isPending}>
+        {abrir.isPending ? "Abrindo…" : "Abrir comanda"}
+      </Button>
+    </form>
+  );
+}
+
+function DetalheComanda({
+  comandaId,
+  mesa,
+  mesas,
+  aoTrocarMesa,
+  aoFechar,
+}: {
+  comandaId: string;
+  mesa: MesaEstado;
+  mesas: MesaEstado[];
+  aoTrocarMesa: (mesaId: string) => void;
+  aoFechar: () => void;
+}) {
+  const { papel } = useEmpresaAtual();
+  const comanda = useComanda(comandaId);
+  const pedidos = usePedidosDaComanda(comandaId);
+  const acoes = useComandaMutations();
+  const [destino, setDestino] = useState("");
+  const [cancelandoComanda, setCancelandoComanda] = useState(false);
+
+  // Nota: estas verificações controlam apenas a interface. As funções do
+  // banco validam o papel de quem chama em cada operação.
+  const podeEncerrar = papel === "owner" || papel === "admin" || papel === "cashier";
+  const podeCancelarComanda = papel === "owner" || papel === "admin";
+
+  if (comanda.isPending || pedidos.isPending) return <LoadingState label="Carregando comanda…" />;
+  if (comanda.isError || pedidos.isError || !comanda.data) {
+    return (
+      <ErrorState
+        description="Não foi possível carregar a comanda."
+        onRetry={() => {
+          void comanda.refetch();
+          void pedidos.refetch();
         }}
       />
-    </div>
+    );
+  }
+
+  const c = comanda.data;
+  const livres = mesas.filter((m) => m.status === "LIVRE");
+  const saldo = Math.max(0, c.total - c.valorPago);
+  const podeLiberar = saldo === 0 && c.pedidosEmProducao === 0;
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        Comanda {c.numero}
+        {c.pessoas ? ` · ${c.pessoas} pessoas` : ""} · aberta há {elapsed(c.abertaEm)}
+      </p>
+
+      <ListaPedidos pedidos={pedidos.data} />
+
+      <div className="space-y-1 text-sm">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span className="tabular-nums">{brl(c.subtotal)}</span>
+        </div>
+        <div className="flex justify-between text-muted-foreground">
+          <span>Serviço ({c.taxaServicoPercentual}%)</span>
+          <span className="tabular-nums">{brl(c.taxaServico)}</span>
+        </div>
+        <div className="flex justify-between text-lg font-bold">
+          <span>Total</span>
+          <span className="tabular-nums">{brl(c.total)}</span>
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        {c.status === "OPEN" && (
+          <>
+            <Button asChild variant="outline" className="h-11">
+              <Link to="/pdv" search={{ comanda: c.id }}>
+                Lançar pedido no PDV
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11"
+              disabled={acoes.pedirConta.isPending}
+              onClick={() => acoes.pedirConta.mutate(c.id)}
+            >
+              Pedir conta
+            </Button>
+          </>
+        )}
+        {podeEncerrar && podeLiberar && (
+          <Button
+            className="h-11"
+            disabled={acoes.encerrar.isPending}
+            onClick={() => acoes.encerrar.mutate(c.id, { onSuccess: aoFechar })}
+          >
+            Liberar mesa
+          </Button>
+        )}
+        {saldo > 0 && (
+          <p className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+            O recebimento da conta ({brl(saldo)}) será feito pelo Caixa.
+          </p>
+        )}
+      </div>
+
+      {c.status === "OPEN" && (
+        <div className="flex gap-2">
+          <select
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            className="h-10 flex-1 rounded-md border bg-background px-3 text-sm"
+            aria-label="Mesa de destino"
+          >
+            <option value="">Transferir para…</option>
+            {livres.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            disabled={!destino || acoes.transferir.isPending}
+            onClick={() =>
+              acoes.transferir.mutate(
+                { comandaId: c.id, mesaDestinoId: destino },
+                { onSuccess: () => aoTrocarMesa(destino) },
+              )
+            }
+          >
+            Transferir
+          </Button>
+        </div>
+      )}
+
+      {podeCancelarComanda && (
+        <Button
+          variant="ghost"
+          className="w-full text-destructive"
+          onClick={() => setCancelandoComanda(true)}
+        >
+          Cancelar comanda
+        </Button>
+      )}
+
+      <DialogoMotivo
+        aberto={cancelandoComanda}
+        titulo={`Cancelar a comanda ${c.numero}?`}
+        descricao={`Os pedidos em aberto serão cancelados e a ${mesa.nome} ficará livre. O motivo fica registrado na auditoria.`}
+        confirmando={acoes.cancelar.isPending}
+        aoFechar={() => setCancelandoComanda(false)}
+        aoConfirmar={(motivo) =>
+          acoes.cancelar.mutate({ comandaId: c.id, motivo }, { onSuccess: aoFechar })
+        }
+      />
+    </>
+  );
+}
+
+function ListaPedidos({ pedidos }: { pedidos: PedidoDaComanda[] }) {
+  const { papel } = useEmpresaAtual();
+  const { avancar, cancelar } = usePedidoMutations();
+  const [cancelando, setCancelando] = useState<PedidoDaComanda | null>(null);
+
+  // Nota: controla apenas a interface; `cancelar_pedido` valida o papel.
+  const podeCancelar = (p: PedidoDaComanda) =>
+    (PEDIDO_CANCELAVEL as readonly string[]).includes(p.status) &&
+    (p.status === "DRAFT" || papel === "owner" || papel === "admin" || papel === "cashier");
+
+  if (pedidos.length === 0) {
+    return (
+      <p className="rounded-md border p-3 text-sm text-muted-foreground">Nenhum pedido lançado.</p>
+    );
+  }
+
+  return (
+    <>
+      <ul className="divide-y rounded-md border">
+        {pedidos.map((p) => (
+          <li
+            key={p.id}
+            className={cn("space-y-1 p-3 text-sm", p.status === "CANCELLED" && "opacity-60")}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">#{p.numero}</span>
+              <span className="flex items-center gap-2">
+                <span className="tabular-nums">{brl(p.total)}</span>
+                <StatusBadge tone={STATUS_PEDIDO[p.status].tone}>
+                  {STATUS_PEDIDO[p.status].label}
+                </StatusBadge>
+              </span>
+            </div>
+            {p.itens.map((i) => (
+              <p key={i.id} className="text-muted-foreground">
+                {i.quantidade}× {i.nomeProduto}
+                {i.adicionais.length > 0 && ` (+ ${i.adicionais.join(", ")})`}
+              </p>
+            ))}
+            {(p.status === "READY" || podeCancelar(p)) && (
+              <div className="flex gap-2 pt-1">
+                {p.status === "READY" && (
+                  <Button
+                    size="sm"
+                    disabled={avancar.isPending}
+                    onClick={() => avancar.mutate({ pedidoId: p.id, para: "DELIVERED" })}
+                  >
+                    Marcar entregue
+                  </Button>
+                )}
+                {podeCancelar(p) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => setCancelando(p)}
+                  >
+                    Cancelar pedido
+                  </Button>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <DialogoMotivo
+        aberto={!!cancelando}
+        titulo={`Cancelar o pedido #${cancelando?.numero ?? ""}?`}
+        descricao="A cozinha deixa de ver o pedido. O motivo fica registrado na auditoria."
+        confirmando={cancelar.isPending}
+        aoFechar={() => setCancelando(null)}
+        aoConfirmar={(motivo) => {
+          if (!cancelando) return;
+          cancelar.mutate(
+            { pedidoId: cancelando.id, motivo },
+            { onSuccess: () => setCancelando(null) },
+          );
+        }}
+      />
+    </>
+  );
+}
+
+function DialogoMotivo({
+  aberto,
+  titulo,
+  descricao,
+  confirmando,
+  aoFechar,
+  aoConfirmar,
+}: {
+  aberto: boolean;
+  titulo: string;
+  descricao: string;
+  confirmando: boolean;
+  aoFechar: () => void;
+  aoConfirmar: (motivo: string) => void;
+}) {
+  return (
+    <Dialog open={aberto} onOpenChange={(abrir) => !abrir && aoFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{titulo}</DialogTitle>
+          <DialogDescription>{descricao}</DialogDescription>
+        </DialogHeader>
+        <FormularioMotivo confirmando={confirmando} aoFechar={aoFechar} aoConfirmar={aoConfirmar} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Fica dentro do conteúdo do diálogo para o texto zerar sempre que ele fecha. */
+function FormularioMotivo({
+  confirmando,
+  aoFechar,
+  aoConfirmar,
+}: {
+  confirmando: boolean;
+  aoFechar: () => void;
+  aoConfirmar: (motivo: string) => void;
+}) {
+  const [motivo, setMotivo] = useState("");
+  const valido = motivo.trim().length >= 3;
+
+  return (
+    <>
+      <form
+        id="form-motivo"
+        className="space-y-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valido) aoConfirmar(motivo.trim());
+        }}
+      >
+        <Label htmlFor="motivo">Motivo</Label>
+        <Textarea
+          id="motivo"
+          value={motivo}
+          maxLength={300}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ex.: cliente desistiu"
+        />
+      </form>
+      <DialogFooter>
+        <Button variant="outline" onClick={aoFechar}>
+          Voltar
+        </Button>
+        <Button
+          type="submit"
+          form="form-motivo"
+          variant="destructive"
+          disabled={!valido || confirmando}
+        >
+          {confirmando ? "Cancelando…" : "Confirmar cancelamento"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

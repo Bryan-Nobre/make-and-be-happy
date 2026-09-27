@@ -14,4 +14,13 @@ export const chaves = {
   formasPagamento: (empresaId: string) => ["formas-pagamento", empresaId] as const,
   membros: (empresaId: string) => ["membros", empresaId] as const,
   convites: (empresaId: string) => ["convites", empresaId] as const,
+
+  /** Prefixo de tudo que muda com o movimento do salão (mesas, comandas, pedidos). */
+  salao: (empresaId: string) => ["salao", empresaId] as const,
+  mesasEstado: (empresaId: string) => ["salao", empresaId, "mesas"] as const,
+  comanda: (empresaId: string, comandaId: string) =>
+    ["salao", empresaId, "comanda", comandaId] as const,
+  pedidosDaComanda: (empresaId: string, comandaId: string) =>
+    ["salao", empresaId, "pedidos", comandaId] as const,
+  painelCozinha: (empresaId: string) => ["cozinha", empresaId] as const,
 };

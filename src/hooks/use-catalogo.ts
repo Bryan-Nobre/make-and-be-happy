@@ -165,6 +165,9 @@ export function useAdicionalMutations() {
   const excluirGrupo = useMutacao({
     executar: (id: string) => catalogo.excluirGrupoAdicional(id),
     sucesso: "Grupo excluído.",
+    erros: {
+      [ERRO.emUso]: "Opções deste grupo já foram vendidas. Desative o grupo em vez de excluir.",
+    },
     invalidar,
   });
 
@@ -183,8 +186,17 @@ export function useAdicionalMutations() {
     invalidar,
   });
 
+  const alternarOpcaoAtiva = useMutacao({
+    executar: ({ id, ativo }: { id: string; ativo: boolean }) =>
+      catalogo.definirOpcaoAtiva(id, ativo),
+    invalidar,
+  });
+
   const excluirOpcao = useMutacao({
     executar: (id: string) => catalogo.excluirOpcaoAdicional(id),
+    erros: {
+      [ERRO.emUso]: "Esta opção já foi vendida e fica no histórico. Desative em vez de excluir.",
+    },
     invalidar,
   });
 
@@ -193,6 +205,7 @@ export function useAdicionalMutations() {
     alternarGrupoAtivo,
     excluirGrupo,
     salvarOpcao,
+    alternarOpcaoAtiva,
     excluirOpcao,
   };
 }

@@ -35,6 +35,7 @@ import {
   useSetores,
 } from "@/hooks/use-catalogo";
 import { brl } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Categoria, GrupoAdicional, Produto, Setor } from "@/services/catalogo";
 
 export const Route = createFileRoute("/produtos")({
@@ -699,7 +700,7 @@ function CartaoGrupo({
   onAlternar: (ativo: boolean) => void;
   onExcluir: () => void;
 }) {
-  const { salvarOpcao, excluirOpcao } = useAdicionalMutations();
+  const { salvarOpcao, alternarOpcaoAtiva, excluirOpcao } = useAdicionalMutations();
   const [nome, setNome] = useState("");
   const [preco, setPreco] = useState(0);
 
@@ -738,9 +739,16 @@ function CartaoGrupo({
         )}
         {grupo.opcoes.map((opcao) => (
           <li key={opcao.id} className="flex items-center justify-between gap-2 py-1">
-            <span>{opcao.nome}</span>
+            <span className={cn(!opcao.ativo && "text-muted-foreground line-through")}>
+              {opcao.nome}
+            </span>
             <span className="flex items-center gap-2">
               <span className="tabular-nums text-muted-foreground">{brl(opcao.preco)}</span>
+              <Switch
+                checked={opcao.ativo}
+                onCheckedChange={(ativo) => alternarOpcaoAtiva.mutate({ id: opcao.id, ativo })}
+                aria-label={`Opção ${opcao.nome} ativa`}
+              />
               <Button
                 size="icon"
                 variant="ghost"
