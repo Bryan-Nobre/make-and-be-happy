@@ -71,6 +71,7 @@
   --color-info-soft: var(--info-soft);
   --color-destructive-soft: var(--destructive-soft);
   --color-primary-strong: var(--primary-strong);
+  --color-rating: var(--rating);
   --shadow-2xs: 0 1px 1px 0 oklch(0.218 0.007 145.3 / 0.03);
   --shadow-xs: 0 1px 2px 0 oklch(0.218 0.007 145.3 / 0.04);
   --shadow-sm:
@@ -117,6 +118,8 @@
   --warning-soft: oklch(0.98 0.016 73.7);
   --info: oklch(0.546 0.215 262.9);
   --info-soft: oklch(0.97 0.014 254.6);
+  /* Estrelas decorativas dos cards de produto. */
+  --rating: oklch(0.82 0.16 84);
   --border: oklch(0.922 0.007 88.6);
   --input: oklch(0.891 0.008 91.5);
   --ring: oklch(0.627 0.17 149.2);

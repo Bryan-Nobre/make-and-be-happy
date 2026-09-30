@@ -1,5 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
+import {
+  Beef,
+  Beer,
+  Cake,
+  ChefHat,
+  Clock,
+  Coffee,
+  CupSoda,
+  Drumstick,
+  Fish,
+  Grid2X2,
+  Hamburger,
+  IceCreamCone,
+  Loader2,
+  Minus,
+  Pizza,
+  Plus,
+  Salad,
+  Sandwich,
+  Search,
+  ShoppingBag,
+  Soup,
+  Star,
+  Store,
+  Trash2,
+  Utensils,
+  UtensilsCrossed,
+  Wallet,
+  Wine,
+  type LucideIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,7 +40,9 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { MoneyInput } from "@/components/shared/money-input";
 import { PageHeader } from "@/components/shared/page-header";
 import { DialogoPagamento } from "@/components/shared/payment-dialog";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -22,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { useSaldoPedido, useSessaoAberta } from "@/hooks/use-caixa";
 import { useCategorias, useGruposAdicionais, useProdutos, useSetores } from "@/hooks/use-catalogo";
@@ -61,6 +94,30 @@ type ItemCarrinho = {
   observacoes: string;
   adicionais: AdicionalEscolhido[];
 };
+
+const ICONES_POR_PALAVRA: [RegExp, LucideIcon][] = [
+  [/hamb[uú]rguer|burger/, Hamburger],
+  [/lanche|sandu[ií]che|sandwich/, Sandwich],
+  [/pizza/, Pizza],
+  [/cerveja|chopp?/, Beer],
+  [/vinho/, Wine],
+  [/caf[eé]/, Coffee],
+  [/bebida|refri|suco|drink/, CupSoda],
+  [/sobremesa|sorvete|doce|a[cç]a[ií]/, IceCreamCone],
+  [/bolo|torta/, Cake],
+  [/salada/, Salad],
+  [/sopa|caldo/, Soup],
+  [/peixe|frutos do mar/, Fish],
+  [/carne|churrasco|grelhad/, Beef],
+  [/frango/, Drumstick],
+  [/por[cç][aã]o|petisco|entrada/, Utensils],
+];
+
+/** Ícone ilustrativo pelo nome da categoria; sem correspondência, usa talheres. */
+function iconeDaCategoria(nome: string): LucideIcon {
+  const normalizado = nome.toLowerCase();
+  return ICONES_POR_PALAVRA.find(([padrao]) => padrao.test(normalizado))?.[1] ?? UtensilsCrossed;
+}
 
 /** Só para exibição: o banco recalcula tudo a partir do cadastro. */
 const totalDoItem = (i: ItemCarrinho) =>
@@ -130,6 +187,12 @@ function Pdv() {
       .filter((g) => g.ativo && produto.grupoIds.includes(g.id))
       .map((g) => ({ ...g, opcoes: g.opcoes.filter((o) => o.ativo) }));
 
+  const quantidadeNoPedido = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const i of carrinho) mapa.set(i.produto.id, (mapa.get(i.produto.id) ?? 0) + i.quantidade);
+    return mapa;
+  }, [carrinho]);
+
   const subtotal = carrinho.reduce((soma, i) => soma + totalDoItem(i), 0);
   const valorDesconto = podeDescontar ? Number(desconto || 0) : 0;
   const total = Math.max(0, subtotal - valorDesconto);
@@ -198,16 +261,16 @@ function Pdv() {
     <div className="space-y-6">
       <PageHeader title="PDV" description="Monte o pedido e envie para a produção." />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="relative">
             <Search
-              className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              className="absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
-              className="h-11 pl-9"
-              placeholder="Buscar por nome ou código"
-              aria-label="Buscar produto"
+              className="h-11 rounded-lg pl-10"
+              placeholder="Buscar produto..."
+              aria-label="Buscar produto por nome ou código"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
@@ -226,36 +289,107 @@ function Pdv() {
             />
           ) : (
             <>
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div
+                className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-2"
+                role="group"
+                aria-label="Categorias"
+              >
                 {[
                   { id: "todas", nome: "Todos" },
                   ...(categorias.data ?? []).filter((c) => c.ativa),
-                ].map((c) => (
-                  <Button
-                    key={c.id}
-                    size="sm"
-                    variant={categoria === c.id ? "default" : "outline"}
-                    onClick={() => setCategoria(c.id)}
-                  >
-                    {c.nome}
-                  </Button>
-                ))}
+                ].map((c) => {
+                  const ativa = categoria === c.id;
+                  const Icone = c.id === "todas" ? Grid2X2 : iconeDaCategoria(c.nome);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      aria-pressed={ativa}
+                      onClick={() => setCategoria(c.id)}
+                      className={cn(
+                        "flex h-20 min-w-22 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border px-3 shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                        ativa
+                          ? "border-primary/30 bg-primary-soft text-primary-strong"
+                          : "border-border bg-card text-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Icone
+                        className={cn(
+                          "size-5.5",
+                          ativa ? "text-primary-strong" : "text-muted-foreground",
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="max-w-32 truncate text-xs font-semibold">{c.nome}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {lista.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={!vendavel(p)}
-                    onClick={() => escolher(p)}
-                    className="flex min-h-24 flex-col justify-between rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
-                  >
-                    <span className="text-sm leading-snug font-medium">{p.nome}</span>
-                    <span className="mt-2 text-sm font-semibold text-primary tabular-nums">
-                      {vendavel(p) ? brl(p.preco) : "Indisponível"}
-                    </span>
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {lista.map((p) => {
+                  const disponivel = vendavel(p);
+                  const noPedido = quantidadeNoPedido.get(p.id) ?? 0;
+                  const IconeProduto = iconeDaCategoria(
+                    (categorias.data ?? []).find((c) => c.id === p.categoriaId)?.nome ?? "",
+                  );
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={!disponivel}
+                      onClick={() => escolher(p)}
+                      className={cn(
+                        "group flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-left shadow-xs transition-[transform,box-shadow,border-color,background-color] duration-150 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:translate-y-0 active:scale-[0.98] active:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border disabled:hover:shadow-xs",
+                        noPedido > 0 ? "border-primary/40" : "border-border",
+                      )}
+                    >
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+                        {p.imagemUrl ? (
+                          <img
+                            src={p.imagemUrl}
+                            alt=""
+                            loading="lazy"
+                            className="size-full object-cover group-disabled:grayscale"
+                          />
+                        ) : (
+                          <span className="flex size-full items-center justify-center text-muted-foreground">
+                            <IconeProduto className="size-8" aria-hidden="true" />
+                          </span>
+                        )}
+                        {noPedido > 0 && (
+                          <span className="absolute top-2 right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground shadow-sm tabular-nums">
+                            {noPedido}
+                            <span className="sr-only"> no pedido</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1 p-3">
+                        <span className="flex gap-0.5 text-rating" aria-hidden="true">
+                          {[0, 1, 2, 3, 4].map((n) => (
+                            <Star key={n} className="size-3 fill-current" />
+                          ))}
+                        </span>
+                        <span className="line-clamp-2 text-sm leading-snug font-semibold text-foreground">
+                          {p.nome}
+                        </span>
+                        {p.descricao.trim() && (
+                          <span className="line-clamp-2 text-xs text-muted-foreground">
+                            {p.descricao}
+                          </span>
+                        )}
+                        {disponivel ? (
+                          <span className="mt-auto pt-1 text-base font-bold text-primary-strong tabular-nums">
+                            {brl(p.preco)}
+                          </span>
+                        ) : (
+                          <StatusBadge tone="neutral" className="mt-auto w-fit">
+                            Indisponível
+                          </StatusBadge>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
               {lista.length === 0 && (
                 <EmptyState
@@ -272,77 +406,122 @@ function Pdv() {
           )}
         </div>
 
-        <aside className="flex flex-col rounded-lg border bg-card lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
-          <div className="border-b p-4">
-            <h2 className="font-semibold">Pedido atual</h2>
-            <Label htmlFor="destino" className="mt-3 block text-xs text-muted-foreground">
-              Destino
-            </Label>
-            <select
-              id="destino"
-              value={destino?.comandaId ?? ""}
-              onChange={(e) => mudarPedido(() => setComandaId(e.target.value))}
-              className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
-            >
-              <option value="">Balcão</option>
-              {mesasComComanda.map((m) => (
-                <option key={m.id} value={m.comandaId ?? ""}>
-                  {m.nome} · Comanda {m.comandaNumero}
-                </option>
-              ))}
-            </select>
+        <Card
+          role="complementary"
+          aria-labelledby="pedido-atual"
+          className="flex flex-col overflow-hidden lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
+        >
+          <div className="space-y-4 border-b p-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id="pedido-atual" className="text-lg font-semibold text-foreground">
+                Pedido atual
+              </h2>
+              {carrinho.length > 0 && (
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {carrinho.length} {carrinho.length === 1 ? "item" : "itens"}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="destino"
+                className="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+              >
+                Destino
+              </Label>
+              <div className="relative">
+                {destino ? (
+                  <UtensilsCrossed
+                    className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-primary-strong"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Store
+                    className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                )}
+                <NativeSelect
+                  id="destino"
+                  value={destino?.comandaId ?? ""}
+                  onChange={(e) => mudarPedido(() => setComandaId(e.target.value))}
+                  className="h-12 rounded-lg pl-10 text-base font-medium"
+                >
+                  <option value="">Balcão</option>
+                  {mesasComComanda.map((m) => (
+                    <option key={m.id} value={m.comandaId ?? ""}>
+                      {m.nome}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              {destino && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <StatusBadge tone="success">{destino.nome}</StatusBadge>
+                  <span className="tabular-nums">Comanda #{destino.comandaNumero}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+
+          <div className="min-h-40 flex-1 px-5 lg:overflow-y-auto">
             {carrinho.length === 0 ? (
               <EmptyState
-                icon={ShoppingCart}
-                title="Carrinho vazio"
+                icon={ShoppingBag}
+                title="Nenhum item no pedido"
                 description="Toque em um produto para adicionar."
+                className="h-full border-0 bg-transparent px-0 py-8"
               />
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y divide-border">
                 {carrinho.map((i) => (
-                  <li key={i.chave} className="rounded-md border p-2.5 text-sm">
-                    <div className="flex justify-between gap-2">
-                      <span className="font-medium">{i.produto.nome}</span>
-                      <span className="tabular-nums">{brl(totalDoItem(i))}</span>
+                  <li key={i.chave} className="py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-sm font-semibold text-foreground">
+                        {i.produto.nome}
+                      </span>
+                      <span className="shrink-0 text-sm font-medium tabular-nums">
+                        {brl(totalDoItem(i))}
+                      </span>
                     </div>
                     {i.adicionais.length > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        + {i.adicionais.map((a) => a.nome).join(", ")}
+                      <p className="mt-1 text-[13px] text-muted-foreground">
+                        + {i.adicionais.map((a) => a.nome).join(" · ")}
                       </p>
                     )}
                     {i.observacoes && (
-                      <p className="text-xs text-muted-foreground italic">{i.observacoes}</p>
+                      <p className="mt-1 text-[13px] text-foreground">
+                        <span className="font-semibold">Obs:</span> {i.observacoes}
+                      </p>
                     )}
-                    <div className="mt-2 flex items-center gap-1">
+                    <div className="mt-3 flex items-center gap-1">
                       <Button
                         size="icon"
                         variant="outline"
-                        className="size-8"
                         onClick={() => alterarQuantidade(i.chave, -1)}
                         aria-label={`Diminuir ${i.produto.nome}`}
                       >
-                        <Minus className="size-3.5" />
+                        <Minus />
                       </Button>
-                      <span className="w-8 text-center tabular-nums">{i.quantidade}</span>
+                      <span className="w-10 text-center text-base font-semibold tabular-nums">
+                        {i.quantidade}
+                      </span>
                       <Button
                         size="icon"
                         variant="outline"
-                        className="size-8"
                         onClick={() => alterarQuantidade(i.chave, 1)}
                         aria-label={`Aumentar ${i.produto.nome}`}
                       >
-                        <Plus className="size-3.5" />
+                        <Plus />
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="ml-auto size-8 text-destructive"
+                        className="ml-auto text-destructive hover:bg-destructive-soft hover:text-destructive"
                         onClick={() => remover(i.chave)}
                         aria-label={`Remover ${i.produto.nome}`}
                       >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 />
                       </Button>
                     </div>
                   </li>
@@ -350,11 +529,12 @@ function Pdv() {
               </ul>
             )}
           </div>
-          <div className="space-y-3 border-t p-4">
+
+          <div className="border-t bg-muted/40 p-5">
             {podeDescontar && (
-              <div className="flex items-center justify-between gap-3 text-sm">
+              <div className="mb-4 flex items-center justify-between gap-3 text-sm">
                 <Label htmlFor="desconto">Desconto</Label>
-                <div className="w-28">
+                <div className="w-32">
                   <MoneyInput
                     id="desconto"
                     value={desconto}
@@ -363,52 +543,79 @@ function Pdv() {
                 </div>
               </div>
             )}
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Subtotal</span>
-              <span className="tabular-nums">{brl(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold">
-              <span>Total</span>
-              <span className="tabular-nums">{brl(total)}</span>
-            </div>
-            {!destino && caixaAberto ? (
-              <div className="grid gap-2">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <dt>Subtotal</dt>
+                <dd className="tabular-nums">{brl(subtotal)}</dd>
+              </div>
+              {valorDesconto > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <dt>Desconto</dt>
+                  <dd className="text-destructive tabular-nums">− {brl(valorDesconto)}</dd>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between border-t pt-3 text-foreground">
+                <dt className="text-base font-semibold">Total</dt>
+                <dd className="text-xl font-bold tabular-nums">{brl(total)}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-5 grid gap-2">
+              {!destino && caixaAberto ? (
+                <>
+                  <Button
+                    size="operational"
+                    className="w-full"
+                    disabled={!carrinho.length || criar.isPending}
+                    onClick={() => enviar(true)}
+                  >
+                    {criar.isPending ? (
+                      <Loader2 className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Wallet aria-hidden="true" />
+                    )}
+                    {criar.isPending ? "Enviando…" : "Enviar e receber"}
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full"
+                    disabled={!carrinho.length || criar.isPending}
+                    onClick={() => enviar(false)}
+                  >
+                    <Clock aria-hidden="true" />
+                    Enviar e receber depois
+                  </Button>
+                </>
+              ) : (
                 <Button
-                  className="h-11 w-full"
-                  disabled={!carrinho.length || criar.isPending}
-                  onClick={() => enviar(true)}
-                >
-                  {criar.isPending ? "Enviando…" : "Enviar e receber"}
-                </Button>
-                <Button
-                  variant="outline"
+                  size="operational"
                   className="w-full"
                   disabled={!carrinho.length || criar.isPending}
                   onClick={() => enviar(false)}
                 >
-                  Enviar e receber depois
+                  {criar.isPending ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : destino ? (
+                    <UtensilsCrossed aria-hidden="true" />
+                  ) : (
+                    <ChefHat aria-hidden="true" />
+                  )}
+                  {criar.isPending
+                    ? "Enviando…"
+                    : destino
+                      ? `Lançar na ${destino.nome}`
+                      : "Enviar para a cozinha"}
                 </Button>
-              </div>
-            ) : (
-              <Button
-                className="h-11 w-full"
-                disabled={!carrinho.length || criar.isPending}
-                onClick={() => enviar(false)}
-              >
-                {criar.isPending
-                  ? "Enviando…"
-                  : destino
-                    ? `Lançar na ${destino.nome}`
-                    : "Enviar para a cozinha"}
-              </Button>
-            )}
-            {!destino && podeReceber && sessao.isSuccess && !sessao.data && (
-              <p className="text-xs text-muted-foreground">
-                O caixa está fechado: o pedido fica a receber até que ele seja aberto.
-              </p>
-            )}
+              )}
+              {!destino && podeReceber && sessao.isSuccess && !sessao.data && (
+                <p className="text-xs text-muted-foreground">
+                  O caixa está fechado: o pedido fica a receber até que ele seja aberto.
+                </p>
+              )}
+            </div>
           </div>
-        </aside>
+        </Card>
       </div>
 
       <DialogoPagamento
