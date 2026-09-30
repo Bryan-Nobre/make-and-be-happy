@@ -55,6 +55,13 @@ export function useCategoriaMutations() {
     invalidar,
   });
 
+  const renomear = useMutacao({
+    executar: ({ id, nome }: { id: string; nome: string }) => catalogo.renomearCategoria(id, nome),
+    sucesso: "Categoria renomeada.",
+    erros: { [ERRO.duplicado]: "Já existe uma categoria com esse nome." },
+    invalidar,
+  });
+
   const alternarAtiva = useMutacao({
     executar: ({ id, ativa }: { id: string; ativa: boolean }) =>
       catalogo.definirCategoriaAtiva(id, ativa),
@@ -68,7 +75,7 @@ export function useCategoriaMutations() {
     invalidar,
   });
 
-  return { salvar, alternarAtiva, excluir };
+  return { salvar, renomear, alternarAtiva, excluir };
 }
 
 export function useSetorMutations() {
@@ -79,6 +86,13 @@ export function useSetorMutations() {
     executar: (entrada: { id?: string; nome: string; ordem: number }) =>
       catalogo.salvarSetor(empresa.id, entrada),
     sucesso: "Setor salvo.",
+    erros: { [ERRO.duplicado]: "Já existe um setor com esse nome." },
+    invalidar,
+  });
+
+  const renomear = useMutacao({
+    executar: ({ id, nome }: { id: string; nome: string }) => catalogo.renomearSetor(id, nome),
+    sucesso: "Setor renomeado.",
     erros: { [ERRO.duplicado]: "Já existe um setor com esse nome." },
     invalidar,
   });
@@ -96,7 +110,7 @@ export function useSetorMutations() {
     invalidar,
   });
 
-  return { salvar, alternarAtivo, excluir };
+  return { salvar, renomear, alternarAtivo, excluir };
 }
 
 export function useProdutoMutations() {
@@ -123,7 +137,7 @@ export function useProdutoMutations() {
   });
 
   const duplicar = useMutacao({
-    executar: (produto: catalogo.Produto) => catalogo.duplicarProduto(empresa.id, produto),
+    executar: (produto: catalogo.Produto) => catalogo.duplicarProduto(produto.id),
     sucesso: "Cópia criada como inativa. Ajuste e ative quando quiser.",
     invalidar,
   });
@@ -186,6 +200,13 @@ export function useAdicionalMutations() {
     invalidar,
   });
 
+  const renomearOpcao = useMutacao({
+    executar: ({ id, nome }: { id: string; nome: string }) =>
+      catalogo.renomearOpcaoAdicional(id, nome),
+    sucesso: "Opção renomeada.",
+    invalidar,
+  });
+
   const alternarOpcaoAtiva = useMutacao({
     executar: ({ id, ativo }: { id: string; ativo: boolean }) =>
       catalogo.definirOpcaoAtiva(id, ativo),
@@ -205,6 +226,7 @@ export function useAdicionalMutations() {
     alternarGrupoAtivo,
     excluirGrupo,
     salvarOpcao,
+    renomearOpcao,
     alternarOpcaoAtiva,
     excluirOpcao,
   };

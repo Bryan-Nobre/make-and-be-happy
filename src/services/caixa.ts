@@ -68,6 +68,8 @@ export type PedidoAReceber = {
   criadoEm: string;
 };
 
+export type PendenciasCaixa = { pedidos: number; comandas: number; valor: number };
+
 export type PartePagamento = {
   metodo: MetodoPagamento;
   valor: number;
@@ -236,6 +238,19 @@ export async function listarPedidosAReceber(empresaId: string): Promise<PedidoAR
     valorPago: Number(p.valor_pago),
     criadoEm: p.criado_em,
   }));
+}
+
+/** Contas que impedem o fechamento: balcão não quitado e comandas com saldo. */
+export async function buscarPendenciasCaixa(empresaId: string): Promise<PendenciasCaixa> {
+  const { data, error } = await supabase.rpc("pendencias_caixa", { p_empresa: empresaId });
+  if (error) throw error;
+
+  const linha = data[0];
+  return {
+    pedidos: linha?.pedidos ?? 0,
+    comandas: linha?.comandas ?? 0,
+    valor: Number(linha?.valor ?? 0),
+  };
 }
 
 export async function buscarSaldoPedido(

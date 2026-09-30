@@ -147,6 +147,9 @@ function AbaProdutos({
   const [produtoDaImagem, setProdutoDaImagem] = useState<string | null>(null);
   const [produtoDaFicha, setProdutoDaFicha] = useState<{ id: string; nome: string } | null>(null);
 
+  const categoriaDe = (p: Produto) => categorias.find((c) => c.id === p.categoriaId);
+  const setorDe = (p: Produto) => setores.find((s) => s.id === p.setorId);
+
   const termo = busca.trim().toLowerCase();
   const lista = produtos.filter(
     (p) => p.nome.toLowerCase().includes(termo) || p.codigo.toLowerCase().includes(termo),
@@ -225,10 +228,20 @@ function AbaProdutos({
                   <td className="p-3 text-muted-foreground">{produto.codigo || "—"}</td>
                   <td className="p-3 font-medium">{produto.nome}</td>
                   <td className="p-3">
-                    {categorias.find((c) => c.id === produto.categoriaId)?.nome ?? "—"}
+                    {categoriaDe(produto)?.nome ?? "—"}
+                    {categoriaDe(produto)?.ativa === false && (
+                      <StatusBadge tone="danger" className="ml-2">
+                        Inativa
+                      </StatusBadge>
+                    )}
                   </td>
                   <td className="p-3">
-                    {setores.find((s) => s.id === produto.setorId)?.nome ?? "—"}
+                    {setorDe(produto)?.nome ?? "—"}
+                    {setorDe(produto)?.ativo === false && (
+                      <StatusBadge tone="danger" className="ml-2">
+                        Inativo
+                      </StatusBadge>
+                    )}
                   </td>
                   <td className="p-3 text-right tabular-nums">{brl(produto.preco)}</td>
                   <td className="p-3">
@@ -464,8 +477,9 @@ function AbaProdutos({
 // ---------------------------------------------------------------------------
 
 function AbaCategorias({ categorias, produtos }: { categorias: Categoria[]; produtos: Produto[] }) {
-  const { salvar, alternarAtiva, excluir } = useCategoriaMutations();
+  const { salvar, renomear, alternarAtiva, excluir } = useCategoriaMutations();
   const [nome, setNome] = useState("");
+  const [renomeando, setRenomeando] = useState<Categoria | null>(null);
 
   return (
     <div className="space-y-3">
@@ -505,6 +519,14 @@ function AbaCategorias({ categorias, produtos }: { categorias: Categoria[]; prod
                 <Button
                   size="icon"
                   variant="ghost"
+                  onClick={() => setRenomeando(categoria)}
+                  aria-label={`Renomear ${categoria.nome}`}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   disabled={usos > 0}
                   onClick={() => excluir.mutate(categoria.id)}
                   aria-label={`Excluir ${categoria.nome}`}
@@ -516,7 +538,110 @@ function AbaCategorias({ categorias, produtos }: { categorias: Categoria[]; prod
           );
         })}
       </ul>
+
+      <DialogoRenomear
+        titulo="Renomear categoria"
+        descricao="O novo nome vale para todos os produtos desta categoria."
+        nomeAtual={renomeando?.nome ?? null}
+        maximo={60}
+        salvando={renomear.isPending}
+        aoFechar={() => setRenomeando(null)}
+        aoSalvar={(novoNome) =>
+          renomeando &&
+          renomear.mutate(
+            { id: renomeando.id, nome: novoNome },
+            { onSuccess: () => setRenomeando(null) },
+          )
+        }
+      />
     </div>
+  );
+}
+
+function DialogoRenomear({
+  titulo,
+  descricao,
+  nomeAtual,
+  maximo,
+  salvando,
+  aoFechar,
+  aoSalvar,
+}: {
+  titulo: string;
+  descricao?: string;
+  nomeAtual: string | null;
+  maximo: number;
+  salvando: boolean;
+  aoFechar: () => void;
+  aoSalvar: (nome: string) => void;
+}) {
+  return (
+    <Dialog open={nomeAtual !== null} onOpenChange={(aberto) => !aberto && aoFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{titulo}</DialogTitle>
+          <DialogDescription>
+            {descricao ?? "Pedidos já lançados continuam com o nome antigo."}
+          </DialogDescription>
+        </DialogHeader>
+        {nomeAtual !== null && (
+          <FormularioRenomear
+            nomeAtual={nomeAtual}
+            maximo={maximo}
+            salvando={salvando}
+            aoFechar={aoFechar}
+            aoSalvar={aoSalvar}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FormularioRenomear({
+  nomeAtual,
+  maximo,
+  salvando,
+  aoFechar,
+  aoSalvar,
+}: {
+  nomeAtual: string;
+  maximo: number;
+  salvando: boolean;
+  aoFechar: () => void;
+  aoSalvar: (nome: string) => void;
+}) {
+  const [nome, setNome] = useState(nomeAtual);
+  const limpo = nome.trim();
+  const valido = limpo.length > 0 && limpo !== nomeAtual;
+
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valido) aoSalvar(limpo);
+      }}
+    >
+      <div className="grid gap-1">
+        <Label htmlFor="renomear-nome">Nome</Label>
+        <Input
+          id="renomear-nome"
+          value={nome}
+          maxLength={maximo}
+          autoFocus
+          onChange={(e) => setNome(e.target.value)}
+        />
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={aoFechar}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={!valido || salvando}>
+          Salvar
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -525,8 +650,9 @@ function AbaCategorias({ categorias, produtos }: { categorias: Categoria[]; prod
 // ---------------------------------------------------------------------------
 
 function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto[] }) {
-  const { salvar, alternarAtivo, excluir } = useSetorMutations();
+  const { salvar, renomear, alternarAtivo, excluir } = useSetorMutations();
   const [nome, setNome] = useState("");
+  const [renomeando, setRenomeando] = useState<Setor | null>(null);
 
   return (
     <div className="space-y-3">
@@ -570,6 +696,14 @@ function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto
                 <Button
                   size="icon"
                   variant="ghost"
+                  onClick={() => setRenomeando(setor)}
+                  aria-label={`Renomear ${setor.nome}`}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   disabled={usos > 0}
                   onClick={() => excluir.mutate(setor.id)}
                   aria-label={`Excluir ${setor.nome}`}
@@ -581,6 +715,21 @@ function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto
           );
         })}
       </ul>
+
+      <DialogoRenomear
+        titulo="Renomear setor"
+        nomeAtual={renomeando?.nome ?? null}
+        maximo={40}
+        salvando={renomear.isPending}
+        aoFechar={() => setRenomeando(null)}
+        aoSalvar={(novoNome) =>
+          renomeando &&
+          renomear.mutate(
+            { id: renomeando.id, nome: novoNome },
+            { onSuccess: () => setRenomeando(null) },
+          )
+        }
+      />
     </div>
   );
 }
@@ -713,9 +862,10 @@ function CartaoGrupo({
   onAlternar: (ativo: boolean) => void;
   onExcluir: () => void;
 }) {
-  const { salvarOpcao, alternarOpcaoAtiva, excluirOpcao } = useAdicionalMutations();
+  const { salvarOpcao, renomearOpcao, alternarOpcaoAtiva, excluirOpcao } = useAdicionalMutations();
   const [nome, setNome] = useState("");
   const [preco, setPreco] = useState(0);
+  const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null);
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -765,6 +915,14 @@ function CartaoGrupo({
               <Button
                 size="icon"
                 variant="ghost"
+                onClick={() => setRenomeando({ id: opcao.id, nome: opcao.nome })}
+                aria-label={`Renomear ${opcao.nome}`}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
                 onClick={() => excluirOpcao.mutate(opcao.id)}
                 aria-label={`Excluir ${opcao.nome}`}
               >
@@ -805,6 +963,21 @@ function CartaoGrupo({
           Add
         </Button>
       </form>
+
+      <DialogoRenomear
+        titulo="Renomear opção"
+        nomeAtual={renomeando?.nome ?? null}
+        maximo={60}
+        salvando={renomearOpcao.isPending}
+        aoFechar={() => setRenomeando(null)}
+        aoSalvar={(novoNome) =>
+          renomeando &&
+          renomearOpcao.mutate(
+            { id: renomeando.id, nome: novoNome },
+            { onSuccess: () => setRenomeando(null) },
+          )
+        }
+      />
     </div>
   );
 }

@@ -34,7 +34,8 @@ export function DialogoFichaTecnica({
           <DialogTitle>Ficha técnica: {produto?.nome}</DialogTitle>
           <DialogDescription>
             Quanto de cada insumo sai do estoque a cada unidade vendida. Sem ficha, o produto não
-            baixa estoque.
+            baixa estoque. Mudanças valem para os próximos itens enviados à produção; insumo
+            desativado bloqueia a venda.
           </DialogDescription>
         </DialogHeader>
         {produto && <Carregador produto={produto} aoFechar={aoFechar} />}

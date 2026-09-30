@@ -77,6 +77,11 @@ export async function salvarCategoria(
   if (error) throw error;
 }
 
+export async function renomearCategoria(id: string, nome: string): Promise<void> {
+  const { error } = await supabase.from("categorias").update({ nome: nome.trim() }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function definirCategoriaAtiva(id: string, ativa: boolean): Promise<void> {
   const { error } = await supabase.from("categorias").update({ ativa }).eq("id", id);
   if (error) throw error;
@@ -113,6 +118,15 @@ export async function salvarSetor(
     ? await supabase.from("setores_cozinha").update(valores).eq("id", entrada.id)
     : await supabase.from("setores_cozinha").insert({ empresa_id: empresaId, ...valores });
 
+  if (error) throw error;
+}
+
+/** Itens já lançados guardam `nome_setor`: renomear não altera o histórico. */
+export async function renomearSetor(id: string, nome: string): Promise<void> {
+  const { error } = await supabase
+    .from("setores_cozinha")
+    .update({ nome: nome.trim() })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -189,28 +203,22 @@ export type EntradaProduto = {
   grupoIds: string[];
 };
 
+/** Produto e vínculos com grupos são gravados juntos: se algo falhar, nada muda. */
 export async function salvarProduto(empresaId: string, entrada: EntradaProduto): Promise<string> {
-  const valores = {
-    nome: entrada.nome.trim(),
-    descricao: entrada.descricao.trim() || null,
-    preco: entrada.preco,
-    codigo: entrada.codigo.trim() || null,
-    categoria_id: entrada.categoriaId,
-    setor_id: entrada.setorId,
-  };
-
-  const { data, error } = entrada.id
-    ? await supabase.from("produtos").update(valores).eq("id", entrada.id).select("id").single()
-    : await supabase
-        .from("produtos")
-        .insert({ empresa_id: empresaId, ...valores })
-        .select("id")
-        .single();
+  const { data, error } = await supabase.rpc("salvar_produto", {
+    p_empresa: empresaId,
+    p_produto: entrada.id ?? null,
+    p_nome: entrada.nome.trim(),
+    p_descricao: entrada.descricao.trim(),
+    p_preco: entrada.preco,
+    p_codigo: entrada.codigo.trim(),
+    p_categoria: entrada.categoriaId,
+    p_setor: entrada.setorId,
+    p_grupos: entrada.grupoIds,
+  });
 
   if (error) throw error;
-
-  await definirGruposDoProduto(empresaId, data.id, entrada.grupoIds);
-  return data.id;
+  return data;
 }
 
 /** Produto nunca é excluído: sai do cardápio com `ativo = false` (PRD 12). */
@@ -228,51 +236,10 @@ export async function definirProdutoDisponivel(id: string, disponivel: boolean):
  * A cópia entra inativa e sem código, porque o código é único por empresa e a
  * intenção de quem duplica é ajustar o item antes de publicá-lo.
  */
-export async function duplicarProduto(empresaId: string, produto: Produto): Promise<string> {
-  const { data, error } = await supabase
-    .from("produtos")
-    .insert({
-      empresa_id: empresaId,
-      nome: `${produto.nome} (cópia)`.slice(0, 120),
-      descricao: produto.descricao || null,
-      preco: produto.preco,
-      categoria_id: produto.categoriaId,
-      setor_id: produto.setorId,
-      imagem_url: produto.imagemUrl,
-      ativo: false,
-    })
-    .select("id")
-    .single();
-
+export async function duplicarProduto(produtoId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("duplicar_produto", { p_produto: produtoId });
   if (error) throw error;
-
-  await definirGruposDoProduto(empresaId, data.id, produto.grupoIds);
-  return data.id;
-}
-
-async function definirGruposDoProduto(
-  empresaId: string,
-  produtoId: string,
-  grupoIds: string[],
-): Promise<void> {
-  const { error: erroLimpeza } = await supabase
-    .from("produto_grupo_adicional")
-    .delete()
-    .eq("produto_id", produtoId);
-
-  if (erroLimpeza) throw erroLimpeza;
-  if (grupoIds.length === 0) return;
-
-  const { error } = await supabase.from("produto_grupo_adicional").insert(
-    grupoIds.map((grupoId, indice) => ({
-      empresa_id: empresaId,
-      produto_id: produtoId,
-      grupo_id: grupoId,
-      ordem: indice,
-    })),
-  );
-
-  if (error) throw error;
+  return data;
 }
 
 export async function enviarImagemProduto(
@@ -396,6 +363,15 @@ export async function salvarOpcaoAdicional(
         .from("opcoes_adicionais")
         .insert({ empresa_id: empresaId, grupo_id: grupoId, ...valores });
 
+  if (error) throw error;
+}
+
+/** Itens já lançados guardam `nome_opcao`: renomear não altera o histórico. */
+export async function renomearOpcaoAdicional(id: string, nome: string): Promise<void> {
+  const { error } = await supabase
+    .from("opcoes_adicionais")
+    .update({ nome: nome.trim() })
+    .eq("id", id);
   if (error) throw error;
 }
 

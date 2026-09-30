@@ -109,6 +109,15 @@ export function usePedidosAReceber() {
   });
 }
 
+export function usePendenciasCaixa() {
+  const { empresa } = useEmpresaAtual();
+
+  return useQuery({
+    queryKey: chaves.pendenciasCaixa(empresa.id),
+    queryFn: () => servico.buscarPendenciasCaixa(empresa.id),
+  });
+}
+
 /** Saldo oficial de um pedido recém-criado, para abrir a cobrança com o valor do banco. */
 export function useSaldoPedido(pedidoId: string | null) {
   const { empresa } = useEmpresaAtual();

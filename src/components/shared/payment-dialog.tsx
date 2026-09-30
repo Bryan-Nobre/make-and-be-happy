@@ -16,6 +16,7 @@ import { useRegistrarPagamento } from "@/hooks/use-caixa";
 import { useFormasPagamento } from "@/hooks/use-configuracoes";
 import { brl } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { novoUuid } from "@/lib/uuid";
 import type { AlvoPagamento, PartePagamento, ResultadoPagamento } from "@/services/caixa";
 import { METODO_LABEL, type MetodoPagamento } from "@/services/configuracoes";
 
@@ -96,7 +97,7 @@ function FormularioPagamento({
 
   // Uma chave por abertura do diálogo: se a resposta se perder e o operador
   // tentar de novo, o banco devolve o resultado do primeiro envio.
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
   const [partes, setPartes] = useState<Parte[]>([]);
 
   const metodoInicial = ativas.includes("PIX") ? "PIX" : ativas[0];
@@ -124,7 +125,7 @@ function FormularioPagamento({
     if (!metodo) return;
     setPartes([
       ...lista,
-      { chave: crypto.randomUUID(), metodo, valor: Math.max(0, restante), recebido: "" },
+      { chave: novoUuid(), metodo, valor: Math.max(0, restante), recebido: "" },
     ]);
   };
 

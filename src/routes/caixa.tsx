@@ -29,12 +29,14 @@ import {
   useMovimentacoes,
   usePagamentos,
   usePedidosAReceber,
+  usePendenciasCaixa,
   useRealtimeCaixa,
   useSessaoAberta,
 } from "@/hooks/use-caixa";
 import { brl, dateTime, time } from "@/lib/format";
 import { TIPO_MOVIMENTACAO } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
 import type { PagamentoCaixa, PedidoAReceber, SessaoCaixa } from "@/services/caixa";
 import { METODO_LABEL } from "@/services/configuracoes";
@@ -91,7 +93,7 @@ function AbrirCaixa() {
   const { abrir } = useCaixaMutations();
   const [valor, setValor] = useState<number | "">("");
   const [observacao, setObservacao] = useState("");
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
   const valido = valor !== "" && valor >= 0;
 
   return (
@@ -482,7 +484,7 @@ function FormularioMovimento({
   const { movimentar } = useCaixaMutations();
   const [valor, setValor] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
 
   const numero = Number(valor || 0);
   const excede = tipo === "SANGRIA" && numero > dinheiroEsperado;
@@ -559,8 +561,12 @@ function DialogoFechamento({
 
 function FormularioFechamento({ sessao, aoFechar }: { sessao: SessaoCaixa; aoFechar: () => void }) {
   const { fechar } = useCaixaMutations();
+  const pendencias = usePendenciasCaixa();
   const [contado, setContado] = useState<number | "">("");
   const [justificativa, setJustificativa] = useState("");
+
+  const qtdPendente = pendencias.data ? pendencias.data.pedidos + pendencias.data.comandas : 0;
+  const bloqueado = pendencias.isPending || pendencias.isError || qtdPendente > 0;
 
   const diferenca =
     contado === ""
@@ -576,13 +582,36 @@ function FormularioFechamento({ sessao, aoFechar }: { sessao: SessaoCaixa; aoFec
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!valido) return;
+          if (!valido || bloqueado) return;
           fechar.mutate(
             { sessaoId: sessao.id, dinheiroInformado: Number(contado), justificativa },
             { onSuccess: aoFechar },
           );
         }}
       >
+        {pendencias.isPending ? (
+          <p className="text-sm text-muted-foreground">Verificando contas pendentes…</p>
+        ) : pendencias.isError ? (
+          <ErrorState
+            description="Não foi possível verificar as contas pendentes."
+            onRetry={() => void pendencias.refetch()}
+          />
+        ) : (
+          qtdPendente > 0 && (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm"
+            >
+              <p className="font-medium text-destructive">
+                {qtdPendente} conta(s) pendente(s) somando {brl(pendencias.data.valor)}.
+              </p>
+              <p className="text-muted-foreground">
+                {pendencias.data.pedidos} pedido(s) de balcão e {pendencias.data.comandas}{" "}
+                comanda(s) com saldo. Receba antes de fechar o caixa.
+              </p>
+            </div>
+          )
+        )}
         <p className="text-sm">
           Dinheiro esperado:{" "}
           <strong className="tabular-nums">{brl(sessao.dinheiroEsperado)}</strong>
@@ -621,7 +650,7 @@ function FormularioFechamento({ sessao, aoFechar }: { sessao: SessaoCaixa; aoFec
           type="submit"
           form="form-fechamento"
           variant="destructive"
-          disabled={!valido || fechar.isPending}
+          disabled={!valido || bloqueado || fechar.isPending}
         >
           {fechar.isPending ? "Fechando…" : "Confirmar fechamento"}
         </Button>

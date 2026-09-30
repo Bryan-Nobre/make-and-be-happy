@@ -1863,6 +1863,7 @@ export type Database = {
         Args: { p_ativo: boolean; p_membro: string };
         Returns: undefined;
       };
+      duplicar_produto: { Args: { p_produto: string }; Returns: string };
       encerrar_comanda: { Args: { p_comanda: string }; Returns: undefined };
       estornar_pagamento: {
         Args: { p_motivo: string; p_pagamento: string };
@@ -1912,7 +1913,7 @@ export type Database = {
         Returns: string;
       };
       painel_cozinha: {
-        Args: { p_empresa: string };
+        Args: { p_empresa: string; p_setor?: string };
         Returns: {
           adicionais: string[];
           comanda_numero: number;
@@ -1934,7 +1935,12 @@ export type Database = {
           status: Database["public"]["Enums"]["status_operacional_pedido"];
         }[];
       };
+      pendencias_caixa: {
+        Args: { p_empresa: string };
+        Returns: { comandas: number; pedidos: number; valor: number }[];
+      };
       pedir_conta: { Args: { p_comanda: string }; Returns: undefined };
+      reabrir_comanda: { Args: { p_comanda: string }; Returns: undefined };
       registrar_pagamento: {
         Args: {
           p_client_request_id?: string;
@@ -2017,6 +2023,20 @@ export type Database = {
           prontos: number;
           ticket_medio: number;
         }[];
+      };
+      salvar_produto: {
+        Args: {
+          p_categoria: string;
+          p_codigo: string;
+          p_descricao: string;
+          p_empresa: string;
+          p_grupos: string[];
+          p_nome: string;
+          p_preco: number;
+          p_produto: string | null;
+          p_setor: string | null;
+        };
+        Returns: string;
       };
       transferir_comanda: {
         Args: { p_comanda: string; p_mesa_destino: string };

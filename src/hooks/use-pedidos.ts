@@ -115,12 +115,12 @@ export function usePedidosDaComanda(comandaId: string | null) {
   });
 }
 
-export function usePainelCozinha() {
+export function usePainelCozinha(setorId?: string | null) {
   const { empresa } = useEmpresaAtual();
 
   return useQuery({
-    queryKey: chaves.painelCozinha(empresa.id),
-    queryFn: () => servico.listarPainelCozinha(empresa.id),
+    queryKey: [...chaves.painelCozinha(empresa.id), setorId ?? "todos"],
+    queryFn: () => servico.listarPainelCozinha(empresa.id, setorId),
     refetchInterval: INTERVALO_RESERVA_MS,
   });
 }
@@ -146,6 +146,12 @@ export function useComandaMutations() {
     invalidar,
   });
 
+  const reabrir = useMutacao({
+    executar: (comandaId: string) => servico.reabrirComanda(comandaId),
+    sucesso: "Comanda reaberta.",
+    invalidar,
+  });
+
   const transferir = useMutacao({
     executar: ({ comandaId, mesaDestinoId }: { comandaId: string; mesaDestinoId: string }) =>
       servico.transferirComanda(comandaId, mesaDestinoId),
@@ -166,7 +172,7 @@ export function useComandaMutations() {
     invalidar: [...invalidar, chaves.painelCozinha(empresa.id), chaves.estoque(empresa.id)],
   });
 
-  return { abrir, pedirConta, transferir, encerrar, cancelar };
+  return { abrir, pedirConta, reabrir, transferir, encerrar, cancelar };
 }
 
 export function usePedidoMutations() {

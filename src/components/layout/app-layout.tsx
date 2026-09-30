@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
   ChefHat,
+  ChevronsUpDown,
   ClipboardList,
   LayoutDashboard,
   Lock,
@@ -19,6 +20,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { RotaProtegida } from "@/components/layout/rota-protegida";
+import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,67 +76,125 @@ export const NAV: NavItem[] = [
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2.5 rounded-md px-1 py-1">
-      <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+    <Link to="/" className="flex items-center gap-3 rounded-lg px-1 py-1">
+      <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-xs">
         A
       </span>
-      <span className="leading-tight">
-        <span className="block text-sm font-bold tracking-tight">ARVON FOOD</span>
-        <span className="block text-xs text-muted-foreground">Gestão para restaurantes</span>
+      <span className="leading-none">
+        <span className="block text-base font-bold tracking-tight text-foreground">ARVON</span>
+        <span className="mt-1 block text-xs font-medium tracking-widest text-muted-foreground">
+          FOOD
+        </span>
       </span>
     </Link>
   );
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinkItem({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   const { podeVer } = useEmpresa();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const groups: NavItem["group"][] = ["Operação", "Gestão"];
+  const allowed = podeVer(item.key);
+  const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
 
   return (
-    <nav aria-label="Navegação principal" className="flex flex-col gap-5">
+    <li>
+      <Link
+        to={item.to}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-10",
+          active
+            ? "bg-primary-soft text-primary-strong"
+            : "text-foreground/80 hover:bg-muted hover:text-foreground",
+          !allowed && "opacity-55",
+        )}
+      >
+        <item.icon
+          className={cn(
+            "size-4.5 shrink-0",
+            active ? "text-primary-strong" : "text-muted-foreground group-hover:text-foreground",
+          )}
+          aria-hidden="true"
+        />
+        <span className="flex-1 truncate">{item.label}</span>
+        {!allowed && (
+          <Lock
+            className="size-3.5 text-muted-foreground"
+            aria-label="Sem permissão para este módulo"
+          />
+        )}
+      </Link>
+    </li>
+  );
+}
+
+function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const groups: NavItem["group"][] = ["Operação", "Gestão"];
+  const destacados = NAV.filter((item) => item.key === "configuracoes");
+
+  return (
+    <nav aria-label="Navegação principal" className="flex flex-col gap-6">
       {groups.map((group) => {
-        const items = NAV.filter((item) => item.group === group);
+        const items = NAV.filter((item) => item.group === group && !destacados.includes(item));
         return (
           <div key={group}>
-            <p className="px-3 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            <p className="px-3 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               {group}
             </p>
-            <ul className="flex flex-col gap-0.5">
-              {items.map((item) => {
-                const allowed = podeVer(item.key);
-                const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
-                return (
-                  <li key={item.key}>
-                    <Link
-                      to={item.to}
-                      onClick={onNavigate}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
-                        active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent/60",
-                        !allowed && "opacity-55",
-                      )}
-                    >
-                      <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                      <span className="flex-1">{item.label}</span>
-                      {!allowed && (
-                        <Lock
-                          className="size-3.5 text-muted-foreground"
-                          aria-label="Sem permissão para este módulo"
-                        />
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
+            <ul className="flex flex-col gap-1">
+              {items.map((item) => (
+                <NavLinkItem
+                  key={item.key}
+                  item={item}
+                  pathname={pathname}
+                  onNavigate={onNavigate}
+                />
+              ))}
             </ul>
           </div>
         );
       })}
+      {destacados.length > 0 && (
+        <ul className="flex flex-col gap-1 border-t pt-4">
+          {destacados.map((item) => (
+            <NavLinkItem key={item.key} item={item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+        </ul>
+      )}
     </nav>
+  );
+}
+
+function SidebarContent({
+  onNavigate,
+  mostrarUsuario = true,
+}: {
+  onNavigate?: () => void;
+  mostrarUsuario?: boolean;
+}) {
+  return (
+    <div className="flex h-full flex-col bg-sidebar">
+      <div className="flex h-16 shrink-0 items-center px-4">
+        <Brand />
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <NavList onNavigate={onNavigate} />
+      </div>
+      {mostrarUsuario && (
+        <div className="shrink-0 border-t p-3">
+          <UserMenu variant="sidebar" />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -148,7 +208,7 @@ function iniciais(nome: string) {
     .toUpperCase();
 }
 
-function UserMenu() {
+function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar" }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa } = useEmpresa();
@@ -171,19 +231,43 @@ function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-11 gap-2 px-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-            {iniciais(nomeUsuario)}
-          </span>
-          <span className="hidden text-left leading-tight sm:block">
-            <span className="block text-sm font-medium">{nomeUsuario}</span>
-            <span className="block text-xs text-muted-foreground">
-              {papel ? PAPEL_LABEL[papel] : ""}
+        {variant === "sidebar" ? (
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-muted/60 px-3 py-2.5 text-left transition-colors hover:bg-muted"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
+              {iniciais(nomeUsuario)}
             </span>
-          </span>
-        </Button>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {nomeUsuario}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {papel ? PAPEL_LABEL[papel] : ""}
+              </span>
+            </span>
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        ) : (
+          <Button variant="ghost" className="h-11 gap-2 px-2">
+            <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+              {iniciais(nomeUsuario)}
+            </span>
+            <span className="hidden text-left leading-tight sm:block">
+              <span className="block text-sm font-medium">{nomeUsuario}</span>
+              <span className="block text-xs text-muted-foreground">
+                {papel ? PAPEL_LABEL[papel] : ""}
+              </span>
+            </span>
+          </Button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent
+        align={variant === "sidebar" ? "start" : "end"}
+        side={variant === "sidebar" ? "top" : "bottom"}
+        className="w-64"
+      >
         {vinculos.length > 1 && (
           <>
             <DropdownMenuLabel>Restaurante</DropdownMenuLabel>
@@ -213,15 +297,11 @@ function UserMenu() {
 
 function PermissionDenied({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border bg-card px-6 py-16 text-center">
-      <span className="flex size-11 items-center justify-center rounded-full bg-muted">
-        <Lock className="size-5 text-muted-foreground" aria-hidden="true" />
-      </span>
-      <h2 className="mt-4 text-lg font-semibold">Acesso não permitido</h2>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Seu perfil atual não tem acesso ao módulo {label}. Peça a um administrador para liberar.
-      </p>
-    </div>
+    <EmptyState
+      icon={Lock}
+      title="Acesso não permitido"
+      description={`Seu perfil atual não tem acesso ao módulo ${label}. Peça a um administrador para liberar.`}
+    />
   );
 }
 
@@ -230,8 +310,12 @@ function SeloCaixa() {
   if (!sessao.isSuccess) return null;
 
   return (
-    <Link to="/caixa" aria-label="Ir para o Caixa">
-      <StatusBadge tone={sessao.data ? "success" : "neutral"}>
+    <Link
+      to="/caixa"
+      aria-label="Ir para o Caixa"
+      className="rounded-md transition-opacity hover:opacity-80"
+    >
+      <StatusBadge tone={sessao.data ? "success" : "neutral"} className="py-1">
         {sessao.data ? "Caixa aberto" : "Caixa fechado"}
       </StatusBadge>
     </Link>
@@ -247,42 +331,44 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-[280px] flex-col border-r bg-sidebar lg:flex">
-        <div className="flex h-16 items-center border-b px-4">
-          <Brand />
-        </div>
-        <div className="flex-1 overflow-y-auto px-3 py-4">
-          <NavList />
-        </div>
+        <SidebarContent />
       </aside>
 
       <div className="lg:pl-[280px]">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-card/95 px-4 backdrop-blur md:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-card px-4 md:px-6 lg:px-8">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="size-11 lg:hidden">
+              <Button variant="ghost" size="icon" className="-ml-2 size-11 lg:hidden">
                 <Menu className="size-5" aria-hidden="true" />
                 <span className="sr-only">Abrir menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-0">
+            <SheetContent side="left" className="w-[280px] gap-0 bg-sidebar p-0">
               <SheetTitle className="sr-only">Navegação</SheetTitle>
-              <div className="flex h-16 items-center border-b px-4">
-                <Brand />
-              </div>
-              <div className="overflow-y-auto px-3 py-4">
-                <NavList onNavigate={() => setOpen(false)} />
-              </div>
+              <SidebarContent onNavigate={() => setOpen(false)} mostrarUsuario={false} />
             </SheetContent>
           </Sheet>
 
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{empresa?.nome}</p>
-            <p className="hidden text-xs text-muted-foreground sm:block">{label}</p>
+          <p className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+            {empresa && (
+              <>
+                <span className="hidden truncate text-muted-foreground sm:inline">
+                  {empresa.nome}
+                </span>
+                <span aria-hidden="true" className="hidden text-border sm:inline">
+                  /
+                </span>
+              </>
+            )}
+            <span className="truncate font-medium text-foreground">{label}</span>
+          </p>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {empresa && podeVer("caixa") && <SeloCaixa />}
+            <div className="lg:hidden">
+              <UserMenu />
+            </div>
           </div>
-
-          {empresa && podeVer("caixa") && <SeloCaixa />}
-
-          <UserMenu />
         </header>
 
         <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-6 lg:px-8">

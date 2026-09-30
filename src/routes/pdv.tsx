@@ -24,10 +24,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useSaldoPedido, useSessaoAberta } from "@/hooks/use-caixa";
-import { useCategorias, useGruposAdicionais, useProdutos } from "@/hooks/use-catalogo";
+import { useCategorias, useGruposAdicionais, useProdutos, useSetores } from "@/hooks/use-catalogo";
 import { useMesasEstado, usePedidoMutations, useRealtimeSalao } from "@/hooks/use-pedidos";
 import { brl } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
 import type { GrupoAdicional, Produto } from "@/services/catalogo";
 
@@ -73,6 +74,7 @@ function Pdv() {
   useRealtimeSalao();
   const produtos = useProdutos();
   const categorias = useCategorias();
+  const setores = useSetores();
   const grupos = useGruposAdicionais();
   const mesas = useMesasEstado();
   const { criar } = usePedidoMutations();
@@ -85,7 +87,7 @@ function Pdv() {
   const [escolhendo, setEscolhendo] = useState<Produto | null>(null);
   // Renovada a cada mudança do pedido: repetir o envio do mesmo carrinho
   // (clique duplo, rede instável) não cria um segundo pedido.
-  const [requisicaoId, setRequisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId, setRequisicaoId] = useState(() => novoUuid());
   const [cobrando, setCobrando] = useState<string | null>(null);
 
   // Nota: controla apenas a interface. Quem pode conceder desconto e receber
@@ -104,13 +106,24 @@ function Pdv() {
 
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase();
+    const categoriasAtivas = new Set(
+      (categorias.data ?? []).filter((c) => c.ativa).map((c) => c.id),
+    );
     return (produtos.data ?? []).filter(
       (p) =>
         p.ativo &&
+        categoriasAtivas.has(p.categoriaId) &&
         (categoria === "todas" || p.categoriaId === categoria) &&
         (p.nome.toLowerCase().includes(termo) || p.codigo.toLowerCase().includes(termo)),
     );
-  }, [produtos.data, categoria, busca]);
+  }, [produtos.data, categorias.data, categoria, busca]);
+
+  const setoresInativos = useMemo(
+    () => new Set((setores.data ?? []).filter((s) => !s.ativo).map((s) => s.id)),
+    [setores.data],
+  );
+  const vendavel = (p: Produto) =>
+    p.disponivel && !(p.setorId !== null && setoresInativos.has(p.setorId));
 
   const gruposDoProduto = (produto: Produto): GrupoAdicional[] =>
     (grupos.data ?? [])
@@ -123,14 +136,14 @@ function Pdv() {
 
   const mudarPedido = (mudanca: () => void) => {
     mudanca();
-    setRequisicaoId(crypto.randomUUID());
+    setRequisicaoId(novoUuid());
   };
 
   const adicionar = (produto: Produto, adicionais: AdicionalEscolhido[] = [], observacoes = "") =>
     mudarPedido(() =>
       setCarrinho((atual) => [
         ...atual,
-        { chave: crypto.randomUUID(), produto, quantidade: 1, observacoes, adicionais },
+        { chave: novoUuid(), produto, quantidade: 1, observacoes, adicionais },
       ]),
     );
 
@@ -171,7 +184,7 @@ function Pdv() {
           setCarrinho([]);
           setDesconto("");
           setComandaId("");
-          setRequisicaoId(crypto.randomUUID());
+          setRequisicaoId(novoUuid());
           if (comandaDaUrl) void navigate({ search: {} });
         },
       },
@@ -233,13 +246,13 @@ function Pdv() {
                   <button
                     key={p.id}
                     type="button"
-                    disabled={!p.disponivel}
+                    disabled={!vendavel(p)}
                     onClick={() => escolher(p)}
                     className="flex min-h-24 flex-col justify-between rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
                   >
                     <span className="text-sm leading-snug font-medium">{p.nome}</span>
                     <span className="mt-2 text-sm font-semibold text-primary tabular-nums">
-                      {p.disponivel ? brl(p.preco) : "Indisponível"}
+                      {vendavel(p) ? brl(p.preco) : "Indisponível"}
                     </span>
                   </button>
                 ))}

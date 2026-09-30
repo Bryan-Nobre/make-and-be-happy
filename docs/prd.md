@@ -358,6 +358,21 @@ Regras
 - O sistema deve armazenar timestamps das mudanças.
 - Estrutura deve permitir múltiplos setores no futuro.
 - MVP possui uma cozinha principal.
+Regra definitiva do KDS no MVP
+1. Um pedido com itens de produção segue:
+NOVOS → EM PREPARO → PRONTOS → ENTREGUES → sai do KDS.
+2. Pagamento nunca remove um pedido da Cozinha.
+3. Produtos configurados como "Não envia para a cozinha" não aparecem em nenhum KDS.
+4. Se um pedido tiver somente itens que não exigem produção:
+- não deve ficar preso em "Novos";
+- pedido de balcão pode seguir diretamente para Entregue;
+- pedido de mesa pode ficar disponível para entrega e ser marcado como Entregue pelo fluxo de Mesas.
+5. Pedidos com itens de setores diferentes continuam usando o status do pedido inteiro neste MVP.
+Exemplo:
+Cozinha = X-Burger
+Bar = Coca-Cola
+Se um setor avançar o pedido, o status compartilhado avança nos dois painéis.
+Evolução futura (fora do MVP): status individual por item/setor no KDS.
 11. Caixa
 Objetivo
 Controlar a sessão financeira operacional do estabelecimento.

@@ -10,6 +10,16 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { DialogoPagamento } from "@/components/shared/payment-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +42,7 @@ import {
 import { brl, elapsed } from "@/lib/format";
 import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
 import type { MesaEstado, PedidoDaComanda, StatusMesa } from "@/services/pedidos";
 
@@ -205,7 +216,7 @@ function AbrirComanda({ mesa }: { mesa: MesaEstado }) {
   const [pessoas, setPessoas] = useState(2);
   // Uma por abertura de painel: um segundo clique durante a mesma tentativa
   // devolve a comanda já criada em vez de falhar.
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
 
   const valido = Number.isInteger(pessoas) && pessoas >= 1 && pessoas <= 99;
 
@@ -253,6 +264,7 @@ function DetalheComanda({
   const [destino, setDestino] = useState("");
   const [cancelandoComanda, setCancelandoComanda] = useState(false);
   const [recebendo, setRecebendo] = useState(false);
+  const [reabrindo, setReabrindo] = useState(false);
 
   // Nota: estas verificações controlam apenas a interface. As funções do
   // banco validam o papel de quem chama em cada operação.
@@ -277,7 +289,9 @@ function DetalheComanda({
   const c = comanda.data;
   const livres = mesas.filter((m) => m.status === "LIVRE");
   const saldo = Math.max(0, c.total - c.valorPago);
+  const contaPaga = c.total > 0 && saldo === 0;
   const podeLiberar = saldo === 0 && c.pedidosEmProducao === 0;
+  const aguardandoPagamento = c.status === "PAYMENT_PENDING" || c.status === "PAID";
 
   return (
     <>
@@ -301,7 +315,7 @@ function DetalheComanda({
           <span>Total</span>
           <span className="tabular-nums">{brl(c.total)}</span>
         </div>
-        {c.valorPago > 0 && (
+        {(c.valorPago > 0 || c.status !== "OPEN") && (
           <>
             <div className="flex justify-between text-success">
               <span>Pago</span>
@@ -312,6 +326,11 @@ function DetalheComanda({
               <span className="tabular-nums">{brl(saldo)}</span>
             </div>
           </>
+        )}
+        {contaPaga && (
+          <StatusBadge tone="success" className="w-fit">
+            Conta paga
+          </StatusBadge>
         )}
       </div>
 
@@ -332,6 +351,16 @@ function DetalheComanda({
               Pedir conta
             </Button>
           </>
+        )}
+        {aguardandoPagamento && (
+          <Button
+            variant="outline"
+            className="h-11"
+            disabled={acoes.reabrir.isPending}
+            onClick={() => setReabrindo(true)}
+          >
+            Reabrir comanda
+          </Button>
         )}
         {podeEncerrar && podeLiberar && (
           <Button
@@ -414,6 +443,27 @@ function DetalheComanda({
           Cancelar comanda
         </Button>
       )}
+
+      <AlertDialog open={reabrindo} onOpenChange={setReabrindo}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reabrir a comanda {c.numero}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A {mesa.nome} volta a aceitar pedidos. O que já foi pago continua registrado e o saldo
+              é recalculado com os novos pedidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={acoes.reabrir.isPending}
+              onClick={() => acoes.reabrir.mutate(c.id)}
+            >
+              Reabrir comanda
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <DialogoMotivo
         aberto={cancelandoComanda}

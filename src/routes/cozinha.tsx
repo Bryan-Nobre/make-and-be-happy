@@ -9,12 +9,17 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { useSetores } from "@/hooks/use-catalogo";
 import { usePainelCozinha, usePedidoMutations, useRealtimeCozinha } from "@/hooks/use-pedidos";
 import { minutesSince, time } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { StatusPedido, TicketCozinha } from "@/services/pedidos";
 
 export const Route = createFileRoute("/cozinha")({
+  validateSearch: (search: Record<string, unknown>): { setor?: string } => {
+    const setor = search["setor"];
+    return typeof setor === "string" && setor !== "" ? { setor } : {};
+  },
   head: () => ({
     meta: [
       { title: "Cozinha — ARVON FOOD" },
@@ -54,12 +59,32 @@ function useRelogio(intervaloMs: number) {
 function Cozinha() {
   useRealtimeCozinha();
   useRelogio(30_000);
-  const painel = usePainelCozinha();
+  const busca = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setores = useSetores();
+  const ativos = (setores.data ?? []).filter((s) => s.ativo);
+  const setor = ativos.some((s) => s.id === busca.setor) ? busca.setor : undefined;
+  const painel = usePainelCozinha(setor);
   const { avancar } = usePedidoMutations();
 
   return (
     <div className="space-y-6">
       <PageHeader title="Cozinha" description="Acompanhe e avance os pedidos em produção." />
+
+      {ativos.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[{ id: undefined, nome: "Todos" }, ...ativos].map((s) => (
+            <Button
+              key={s.id ?? "todos"}
+              size="sm"
+              variant={setor === s.id ? "default" : "outline"}
+              onClick={() => void navigate({ search: s.id ? { setor: s.id } : {}, replace: true })}
+            >
+              {s.nome}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {painel.isPending ? (
         <LoadingState label="Carregando pedidos…" />

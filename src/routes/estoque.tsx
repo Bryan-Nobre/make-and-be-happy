@@ -26,6 +26,7 @@ import { useEstoqueMutations, useItensEstoque, useMovimentacoesEstoque } from "@
 import { dateTime } from "@/lib/format";
 import { STATUS_ESTOQUE, TIPO_MOVIMENTACAO_ESTOQUE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { novoUuid } from "@/lib/uuid";
 import {
   formatarQuantidade,
   UNIDADE_NOME,
@@ -338,7 +339,7 @@ function DialogoItem({ form, aoFechar }: { form: FormItem | null; aoFechar: () =
 function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: () => void }) {
   const { criar, atualizar } = useEstoqueMutations();
   const [dados, setDados] = useState(inicial);
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
   const salvando = criar.isPending || atualizar.isPending;
   const valido =
     dados.nome.trim().length >= 2 && dados.quantidadeMinima >= 0 && dados.saldoInicial >= 0;
@@ -463,7 +464,7 @@ function FormularioMovimento({ item, aoFechar }: { item: ItemEstoque; aoFechar: 
   const [quantidade, setQuantidade] = useState(0);
   const [motivo, setMotivo] = useState("");
   const [observacao, setObservacao] = useState("");
-  const [requisicaoId] = useState(() => crypto.randomUUID());
+  const [requisicaoId] = useState(() => novoUuid());
 
   const saldoApos =
     tipo === "AJUSTE"

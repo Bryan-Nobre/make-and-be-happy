@@ -18,11 +18,45 @@ export function somarDias(data: string, dias: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Diferença, em ms, entre o relógio do fuso da operação e o UTC naquele instante. */
+function deslocamentoDoFuso(instante: number): number {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: FUSO_OPERACAO,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(instante));
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) =>
+    Number(partes.find((p) => p.type === tipo)?.value ?? 0);
+  const comoUtc = Date.UTC(
+    parte("year"),
+    parte("month") - 1,
+    parte("day"),
+    parte("hour"),
+    parte("minute"),
+    parte("second"),
+  );
+  return comoUtc - Math.floor(instante / 1000) * 1000;
+}
+
+/** Instante da meia-noite de `data` (`YYYY-MM-DD`) no fuso da operação. */
+function inicioDoDiaNoFuso(data: string): string {
+  const [ano, mes, dia] = data.split("-").map(Number);
+  const meiaNoiteUtc = Date.UTC(ano ?? 0, (mes ?? 1) - 1, dia ?? 1);
+  // A segunda passada acerta dias em que o deslocamento muda (horário de verão).
+  const estimativa = meiaNoiteUtc - deslocamentoDoFuso(meiaNoiteUtc);
+  return new Date(meiaNoiteUtc - deslocamentoDoFuso(estimativa)).toISOString();
+}
+
 /** Limites do período como instantes, para filtrar colunas `timestamptz`. */
 export function limitesDoPeriodo({ inicio, fim }: Periodo) {
   return {
-    de: new Date(`${inicio}T00:00:00-03:00`).toISOString(),
-    ate: new Date(`${somarDias(fim, 1)}T00:00:00-03:00`).toISOString(),
+    de: inicioDoDiaNoFuso(inicio),
+    ate: inicioDoDiaNoFuso(somarDias(fim, 1)),
   };
 }
 

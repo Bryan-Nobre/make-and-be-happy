@@ -234,6 +234,12 @@ export async function pedirConta(comandaId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Volta a comanda para aberta; pagamentos já feitos continuam valendo. */
+export async function reabrirComanda(comandaId: string): Promise<void> {
+  const { error } = await supabase.rpc("reabrir_comanda", { p_comanda: comandaId });
+  if (error) throw error;
+}
+
 export async function transferirComanda(comandaId: string, mesaDestinoId: string): Promise<void> {
   const { error } = await supabase.rpc("transferir_comanda", {
     p_comanda: comandaId,
@@ -318,8 +324,14 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
  * Painel de produção. Vem de uma função do banco que não devolve nenhum
  * valor financeiro: a cozinha não tem leitura direta sobre pedidos.
  */
-export async function listarPainelCozinha(empresaId: string): Promise<TicketCozinha[]> {
-  const { data, error } = await supabase.rpc("painel_cozinha", { p_empresa: empresaId });
+export async function listarPainelCozinha(
+  empresaId: string,
+  setorId?: string | null,
+): Promise<TicketCozinha[]> {
+  const { data, error } = await supabase.rpc("painel_cozinha", {
+    p_empresa: empresaId,
+    p_setor: setorId ?? undefined,
+  });
   if (error) throw error;
 
   const tickets = new Map<string, TicketCozinha>();

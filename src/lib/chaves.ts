@@ -33,6 +33,7 @@ export const chaves = {
   pagamentos: (empresaId: string, sessaoId: string) =>
     ["caixa", empresaId, "pagamentos", sessaoId] as const,
   pedidosAReceber: (empresaId: string) => ["caixa", empresaId, "a-receber"] as const,
+  pendenciasCaixa: (empresaId: string) => ["caixa", empresaId, "pendencias"] as const,
 
   /** Prefixo de tudo que muda com o saldo de estoque. Vendas também mexem nele. */
   estoque: (empresaId: string) => ["estoque", empresaId] as const,
