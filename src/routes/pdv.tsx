@@ -1,34 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  Beef,
-  Beer,
-  Cake,
   ChefHat,
   Clock,
-  Coffee,
-  CupSoda,
-  Drumstick,
-  Fish,
   Grid2X2,
-  Hamburger,
-  IceCreamCone,
   Loader2,
   Minus,
-  Pizza,
   Plus,
-  Salad,
-  Sandwich,
   Search,
   ShoppingBag,
-  Soup,
   Star,
   Store,
   Trash2,
-  Utensils,
   UtensilsCrossed,
   Wallet,
-  Wine,
-  type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +24,11 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { MoneyInput } from "@/components/shared/money-input";
 import { PageHeader } from "@/components/shared/page-header";
 import { DialogoPagamento } from "@/components/shared/payment-dialog";
+import {
+  BotaoCliente,
+  SeletorCliente,
+  type ClienteEscolhido,
+} from "@/components/shared/seletor-cliente";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,6 +49,7 @@ import { useSaldoPedido, useSessaoAberta } from "@/hooks/use-caixa";
 import { useCategorias, useGruposAdicionais, useProdutos, useSetores } from "@/hooks/use-catalogo";
 import { useMesasEstado, usePedidoMutations, useRealtimeSalao } from "@/hooks/use-pedidos";
 import { brl } from "@/lib/format";
+import { iconeDaCategoria } from "@/lib/icone-categoria";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
@@ -95,30 +85,6 @@ type ItemCarrinho = {
   adicionais: AdicionalEscolhido[];
 };
 
-const ICONES_POR_PALAVRA: [RegExp, LucideIcon][] = [
-  [/hamb[uú]rguer|burger/, Hamburger],
-  [/lanche|sandu[ií]che|sandwich/, Sandwich],
-  [/pizza/, Pizza],
-  [/cerveja|chopp?/, Beer],
-  [/vinho/, Wine],
-  [/caf[eé]/, Coffee],
-  [/bebida|refri|suco|drink/, CupSoda],
-  [/sobremesa|sorvete|doce|a[cç]a[ií]/, IceCreamCone],
-  [/bolo|torta/, Cake],
-  [/salada/, Salad],
-  [/sopa|caldo/, Soup],
-  [/peixe|frutos do mar/, Fish],
-  [/carne|churrasco|grelhad/, Beef],
-  [/frango/, Drumstick],
-  [/por[cç][aã]o|petisco|entrada/, Utensils],
-];
-
-/** Ícone ilustrativo pelo nome da categoria; sem correspondência, usa talheres. */
-function iconeDaCategoria(nome: string): LucideIcon {
-  const normalizado = nome.toLowerCase();
-  return ICONES_POR_PALAVRA.find(([padrao]) => padrao.test(normalizado))?.[1] ?? UtensilsCrossed;
-}
-
 /** Só para exibição: o banco recalcula tudo a partir do cadastro. */
 const totalDoItem = (i: ItemCarrinho) =>
   i.quantidade * (i.produto.preco + i.adicionais.reduce((soma, a) => soma + a.preco, 0));
@@ -146,6 +112,8 @@ function Pdv() {
   // (clique duplo, rede instável) não cria um segundo pedido.
   const [requisicaoId, setRequisicaoId] = useState(() => novoUuid());
   const [cobrando, setCobrando] = useState<string | null>(null);
+  const [cliente, setCliente] = useState<ClienteEscolhido | null>(null);
+  const [escolhendoCliente, setEscolhendoCliente] = useState(false);
 
   // Nota: controla apenas a interface. Quem pode conceder desconto e receber
   // é decidido pelas funções `criar_pedido` e `registrar_pagamento` no banco.
@@ -229,6 +197,7 @@ function Pdv() {
     criar.mutate(
       {
         comandaId: destino?.comandaId ?? null,
+        clienteId: destino ? null : (cliente?.id ?? null),
         desconto: valorDesconto,
         requisicaoId,
         itens: carrinho.map((i) => ({
@@ -247,6 +216,7 @@ function Pdv() {
           setCarrinho([]);
           setDesconto("");
           setComandaId("");
+          setCliente(null);
           setRequisicaoId(novoUuid());
           if (comandaDaUrl) void navigate({ search: {} });
         },
@@ -462,6 +432,12 @@ function Pdv() {
                 </div>
               )}
             </div>
+            {!destino && (
+              <BotaoCliente
+                nome={cliente?.nome ?? null}
+                onClick={() => setEscolhendoCliente(true)}
+              />
+            )}
           </div>
 
           <div className="min-h-40 flex-1 px-5 lg:overflow-y-auto">
@@ -631,6 +607,15 @@ function Pdv() {
         alvo={cobrando ? { pedidoId: cobrando } : null}
       />
 
+      <SeletorCliente
+        aberto={escolhendoCliente}
+        atualId={cliente?.id ?? null}
+        aoFechar={() => setEscolhendoCliente(false)}
+        aoEscolher={(escolhido) => {
+          mudarPedido(() => setCliente(escolhido));
+          setEscolhendoCliente(false);
+        }}
+      />
       <DialogoAdicionais
         key={escolhendo?.id ?? "nenhum"}
         produto={escolhendo}

@@ -7,6 +7,8 @@ export default defineConfig({
       strictPort: true,
       host: true,
     },
+    // O pré-empacotamento do Vite quebra a URL do .wasm do encoder WebP.
+    optimizeDeps: { exclude: ["@jsquash/webp"] },
   },
 
   tanstackStart: {

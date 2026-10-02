@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Boxes, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Boxes, PackageX, Pencil, Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { KpiCard } from "@/components/shared/kpi-card";
-import { LoadingState } from "@/components/shared/loading-state";
+import { Indicador } from "@/components/shared/indicador";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEstoqueMutations, useItensEstoque, useMovimentacoesEstoque } from "@/hooks/use-estoque";
@@ -28,10 +29,13 @@ import { STATUS_ESTOQUE, TIPO_MOVIMENTACAO_ESTOQUE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
 import {
+  formatarNumeroQuantidade,
   formatarQuantidade,
+  UNIDADE_LABEL,
   UNIDADE_NOME,
   type EntradaItemEstoque,
   type ItemEstoque,
+  type StatusEstoque,
   type TipoMovimentacaoEstoque,
   type UnidadeEstoque,
 } from "@/services/estoque";
@@ -57,38 +61,41 @@ const TIPOS = Object.keys(TIPO_MOVIMENTACAO_ESTOQUE) as TipoMovimentacaoEstoque[
 
 type FormItem = EntradaItemEstoque & { id?: string; saldoInicial: number };
 
+const ITEM_NOVO: FormItem = {
+  nome: "",
+  codigo: "",
+  categoria: "",
+  unidade: "UN",
+  quantidadeMinima: 0,
+  saldoInicial: 0,
+};
+
+const GATILHO_ABA =
+  "h-8 px-4 data-[state=active]:bg-primary-soft data-[state=active]:text-primary-strong data-[state=active]:shadow-none";
+
 function Estoque() {
   const itens = useItensEstoque();
   const [form, setForm] = useState<FormItem | null>(null);
   const [movimentando, setMovimentando] = useState<ItemEstoque | null>(null);
 
   const ativos = (itens.data ?? []).filter((i) => i.ativo);
+  const baixos = ativos.filter((i) => i.status === "BAIXO").length;
+  const zerados = ativos.filter((i) => i.status === "SEM_ESTOQUE").length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Estoque"
-        description="Saldo dos insumos e histórico de movimentações. Vendas baixam o estoque pela ficha técnica do produto."
+        description="Saldo dos insumos. As vendas dão baixa pela ficha técnica do produto."
         actions={
-          <Button
-            onClick={() =>
-              setForm({
-                nome: "",
-                codigo: "",
-                categoria: "",
-                unidade: "UN",
-                quantidadeMinima: 0,
-                saldoInicial: 0,
-              })
-            }
-          >
+          <Button onClick={() => setForm(ITEM_NOVO)}>
             <Plus className="size-4" aria-hidden="true" /> Novo item
           </Button>
         }
       />
 
       {itens.isPending ? (
-        <LoadingState label="Carregando estoque…" />
+        <EstoqueSkeleton />
       ) : itens.isError ? (
         <ErrorState
           description="Não foi possível carregar o estoque."
@@ -96,26 +103,35 @@ function Estoque() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <KpiCard label="Itens ativos" value={String(ativos.length)} icon={Boxes} />
-            <KpiCard
-              label="Estoque baixo"
-              value={String(ativos.filter((i) => i.status === "BAIXO").length)}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Indicador rotulo="Itens ativos" valor={ativos.length} icone={Boxes} tom="neutro" />
+            <Indicador
+              rotulo="Estoque baixo"
+              valor={baixos}
+              icone={AlertTriangle}
+              tom={baixos > 0 ? "atencao" : "neutro"}
             />
-            <KpiCard
-              label="Sem estoque"
-              value={String(ativos.filter((i) => i.status === "SEM_ESTOQUE").length)}
+            <Indicador
+              rotulo="Sem estoque"
+              valor={zerados}
+              icone={PackageX}
+              tom={zerados > 0 ? "critico" : "neutro"}
             />
           </div>
 
-          <Tabs defaultValue="itens">
-            <TabsList>
-              <TabsTrigger value="itens">Itens</TabsTrigger>
-              <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
+          <Tabs defaultValue="itens" className="gap-4">
+            <TabsList className="h-10 border border-border bg-card">
+              <TabsTrigger value="itens" className={GATILHO_ABA}>
+                Itens
+              </TabsTrigger>
+              <TabsTrigger value="movimentacoes" className={GATILHO_ABA}>
+                Movimentações
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="itens">
-              <TabelaItens
+            <TabsContent value="itens" className="mt-4">
+              <ListaItens
                 itens={itens.data}
+                aoNovo={() => setForm(ITEM_NOVO)}
                 aoEditar={(i) =>
                   setForm({
                     id: i.id,
@@ -130,7 +146,7 @@ function Estoque() {
                 aoMovimentar={setMovimentando}
               />
             </TabsContent>
-            <TabsContent value="movimentacoes">
+            <TabsContent value="movimentacoes" className="mt-4">
               <ListaMovimentacoes />
             </TabsContent>
           </Tabs>
@@ -143,12 +159,91 @@ function Estoque() {
   );
 }
 
-function TabelaItens({
+// ---------------------------------------------------------------------------
+// Resumo e estados
+// ---------------------------------------------------------------------------
+
+function EstoqueSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <span className="sr-only">Carregando estoque…</span>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {[0, 1, 2].map((n) => (
+          <div key={n} className="rounded-xl border border-border bg-card px-4 py-3 shadow-xs">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-7 w-10" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-10 w-56 rounded-lg" />
+      <LinhasSkeleton />
+    </div>
+  );
+}
+
+function LinhasSkeleton() {
+  return (
+    <div className="divide-y divide-border rounded-xl border border-border bg-card shadow-xs">
+      {[0, 1, 2, 3, 4].map((n) => (
+        <div key={n} className="flex items-center gap-4 px-4 py-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-4 w-40 max-w-full" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="hidden h-6 w-20 rounded-full sm:block" />
+          <Skeleton className="hidden h-8 w-28 rounded-lg md:block" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Itens
+// ---------------------------------------------------------------------------
+
+const COR_SALDO: Record<StatusEstoque, string> = {
+  NORMAL: "text-foreground",
+  BAIXO: "text-warning-foreground",
+  SEM_ESTOQUE: "text-destructive",
+};
+
+function Saldo({
+  quantidade,
+  unidade,
+  status,
+  className,
+}: {
+  quantidade: number;
+  unidade: UnidadeEstoque;
+  status: StatusEstoque;
+  className?: string;
+}) {
+  return (
+    <span className={cn("whitespace-nowrap tabular-nums", className)}>
+      <span className={cn("font-bold", COR_SALDO[status])}>
+        {formatarNumeroQuantidade(quantidade)}
+      </span>{" "}
+      <span className="text-xs font-medium text-muted-foreground">{UNIDADE_LABEL[unidade]}</span>
+    </span>
+  );
+}
+
+function SeloSituacao({ status }: { status: StatusEstoque }) {
+  return (
+    <StatusBadge tone={STATUS_ESTOQUE[status].tone}>{STATUS_ESTOQUE[status].label}</StatusBadge>
+  );
+}
+
+function ListaItens({
   itens,
+  aoNovo,
   aoEditar,
   aoMovimentar,
 }: {
   itens: ItemEstoque[];
+  aoNovo: () => void;
   aoEditar: (item: ItemEstoque) => void;
   aoMovimentar: (item: ItemEstoque) => void;
 }) {
@@ -171,73 +266,83 @@ function TabelaItens({
         icon={Boxes}
         title="Nenhum item de estoque"
         description="Cadastre os insumos que você quer controlar, como pães, carnes e bebidas."
+        action={
+          <Button onClick={aoNovo}>
+            <Plus className="size-4" aria-hidden="true" /> Novo item
+          </Button>
+        }
       />
     );
   }
 
+  const secundario = (i: ItemEstoque) => [i.codigo, i.categoria].filter(Boolean).join(" · ");
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="h-10 max-w-sm"
-          placeholder="Buscar por nome, código ou categoria"
-          aria-label="Buscar item de estoque"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <Search
+            className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            className="pl-9"
+            placeholder="Buscar item, código ou categoria..."
+            aria-label="Buscar item de estoque"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={mostrarInativos} onCheckedChange={setMostrarInativos} />
           Mostrar desativados
         </label>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b text-left text-muted-foreground">
-            <tr>
-              <th className="p-3">Código</th>
-              <th className="p-3">Item</th>
-              <th className="p-3">Categoria</th>
-              <th className="p-3 text-right">Saldo</th>
-              <th className="p-3 text-right">Mínimo</th>
-              <th className="p-3">Situação</th>
-              <th className="p-3">Ativo</th>
-              <th className="p-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+
+      {lista.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="Nenhum item encontrado"
+          description="Ajuste a busca ou mostre os itens desativados."
+          className="py-10"
+        />
+      ) : (
+        <>
+          {/* Celular: uma linha operacional por item. */}
+          <ul className="space-y-2 md:hidden">
             {lista.map((i) => (
-              <tr key={i.id} className={cn(!i.ativo && "opacity-60")}>
-                <td className="p-3 text-muted-foreground">{i.codigo || "—"}</td>
-                <td className="p-3 font-medium">{i.nome}</td>
-                <td className="p-3">{i.categoria || "—"}</td>
-                <td className="p-3 text-right tabular-nums">
-                  {formatarQuantidade(i.quantidade, i.unidade)}
-                </td>
-                <td className="p-3 text-right text-muted-foreground tabular-nums">
-                  {formatarQuantidade(i.quantidadeMinima, i.unidade)}
-                </td>
-                <td className="p-3">
-                  <StatusBadge tone={STATUS_ESTOQUE[i.status].tone}>
-                    {STATUS_ESTOQUE[i.status].label}
-                  </StatusBadge>
-                </td>
-                <td className="p-3">
-                  <Switch
-                    checked={i.ativo}
-                    onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
-                    aria-label={`${i.nome} ativo`}
+              <li
+                key={i.id}
+                className={cn(
+                  "rounded-xl border border-border bg-card p-4 shadow-xs",
+                  !i.ativo && "opacity-60",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{i.nome}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[secundario(i), `mín. ${formatarQuantidade(i.quantidadeMinima, i.unidade)}`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <SeloSituacao status={i.status} />
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <Saldo
+                    quantidade={i.quantidade}
+                    unidade={i.unidade}
+                    status={i.status}
+                    className="text-xl"
                   />
-                </td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!i.ativo}
-                      onClick={() => aoMovimentar(i)}
-                    >
-                      Movimentar
-                    </Button>
+                  <div className="flex items-center gap-1">
+                    <Switch
+                      checked={i.ativo}
+                      onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
+                      aria-label={`${i.nome} ativo`}
+                      className="mr-1"
+                    />
                     <Button
                       size="icon"
                       variant="ghost"
@@ -246,24 +351,118 @@ function TabelaItens({
                     >
                       <Pencil className="size-4" />
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!i.ativo}
+                      onClick={() => aoMovimentar(i)}
+                    >
+                      <ArrowLeftRight className="size-4" aria-hidden="true" />
+                      Movimentar
+                    </Button>
                   </div>
-                </td>
-              </tr>
+                </div>
+              </li>
             ))}
-          </tbody>
-        </table>
-        {lista.length === 0 && (
-          <p className="p-4 text-sm text-muted-foreground">Nenhum item encontrado.</p>
-        )}
-      </div>
+          </ul>
+
+          {/* Tablet e desktop: tabela, com colunas secundárias só em telas largas. */}
+          <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-xs md:block">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/40 text-left text-xs font-medium text-muted-foreground">
+                <tr>
+                  <th className="hidden px-4 py-3 font-medium xl:table-cell">Código</th>
+                  <th className="px-4 py-3 font-medium">Item</th>
+                  <th className="hidden px-4 py-3 font-medium xl:table-cell">Categoria</th>
+                  <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                  <th className="hidden px-4 py-3 text-right font-medium lg:table-cell">Mínimo</th>
+                  <th className="px-4 py-3 font-medium">Situação</th>
+                  <th className="px-4 py-3 font-medium">Ativo</th>
+                  <th className="px-4 py-3">
+                    <span className="sr-only">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {lista.map((i) => (
+                  <tr
+                    key={i.id}
+                    className={cn("transition-colors hover:bg-muted/30", !i.ativo && "opacity-60")}
+                  >
+                    <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
+                      {i.codigo || "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <p className="font-semibold text-foreground">{i.nome}</p>
+                      {secundario(i) && (
+                        <p className="text-xs text-muted-foreground xl:hidden">{secundario(i)}</p>
+                      )}
+                    </td>
+                    <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
+                      {i.categoria || "—"}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <Saldo
+                        quantidade={i.quantidade}
+                        unidade={i.unidade}
+                        status={i.status}
+                        className="text-base"
+                      />
+                    </td>
+                    <td className="hidden px-4 py-3.5 text-right whitespace-nowrap text-muted-foreground tabular-nums lg:table-cell">
+                      {formatarQuantidade(i.quantidadeMinima, i.unidade)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <SeloSituacao status={i.status} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <Switch
+                        checked={i.ativo}
+                        onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
+                        aria-label={`${i.nome} ativo`}
+                      />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!i.ativo}
+                          onClick={() => aoMovimentar(i)}
+                        >
+                          <ArrowLeftRight className="size-4" aria-hidden="true" />
+                          Movimentar
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => aoEditar(i)}
+                          aria-label={`Editar ${i.nome}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Movimentações
+// ---------------------------------------------------------------------------
+
 function ListaMovimentacoes() {
   const movimentacoes = useMovimentacoesEstoque();
 
-  if (movimentacoes.isPending) return <LoadingState label="Carregando movimentações…" />;
+  if (movimentacoes.isPending) return <LinhasSkeleton />;
   if (movimentacoes.isError) {
     return (
       <ErrorState
@@ -285,38 +484,46 @@ function ListaMovimentacoes() {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">Últimas 100 movimentações.</p>
-      <ul className="divide-y rounded-lg border bg-card text-sm">
+      <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm shadow-xs">
         {movimentacoes.data.map((m) => (
-          <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
-            <StatusBadge tone={TIPO_MOVIMENTACAO_ESTOQUE[m.tipo].tone}>
+          <li key={m.id} className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5">
+            <StatusBadge tone={TIPO_MOVIMENTACAO_ESTOQUE[m.tipo].tone} className="mt-0.5">
               {m.origem === "PEDIDO"
                 ? m.variacao < 0
                   ? "Venda"
                   : "Devolução"
                 : TIPO_MOVIMENTACAO_ESTOQUE[m.tipo].label}
             </StatusBadge>
-            <span className="font-medium">{m.itemNome}</span>
-            <span className={cn("tabular-nums", m.variacao < 0 && "text-destructive")}>
-              {m.variacao > 0 ? "+" : "−"}
-              {formatarQuantidade(Math.abs(m.variacao), m.unidade)}
-            </span>
-            <span className="text-muted-foreground tabular-nums">
-              → {formatarQuantidade(m.saldoResultante, m.unidade)}
-            </span>
-            <span className="flex-1 text-muted-foreground">
-              {m.motivo}
-              {m.observacao && ` · ${m.observacao}`}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {m.nomeMembro ? `${m.nomeMembro} · ` : ""}
-              {dateTime(m.criadoEm)}
-            </span>
+            <div className="min-w-0 flex-1 basis-48">
+              <p className="font-semibold text-foreground">{m.itemNome}</p>
+              <p className="text-xs text-muted-foreground">
+                {m.motivo}
+                {m.observacao && ` · ${m.observacao}`}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {m.nomeMembro ? `${m.nomeMembro} · ` : ""}
+                {dateTime(m.criadoEm)}
+              </p>
+            </div>
+            <div className="ml-auto text-right whitespace-nowrap tabular-nums">
+              <p className={cn("font-bold", m.variacao < 0 ? "text-destructive" : "text-success")}>
+                {m.variacao > 0 ? "+" : "−"}
+                {formatarQuantidade(Math.abs(m.variacao), m.unidade)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                saldo {formatarQuantidade(m.saldoResultante, m.unidade)}
+              </p>
+            </div>
           </li>
         ))}
       </ul>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Diálogos
+// ---------------------------------------------------------------------------
 
 function DialogoItem({ form, aoFechar }: { form: FormItem | null; aoFechar: () => void }) {
   return (
@@ -398,18 +605,17 @@ function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: ()
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="item-unidade">Unidade</Label>
-          <select
+          <NativeSelect
             id="item-unidade"
             value={dados.unidade}
             onChange={(e) => campo("unidade", e.target.value as UnidadeEstoque)}
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           >
             {UNIDADES.map((u) => (
               <option key={u} value={u}>
                 {UNIDADE_NOME[u]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="item-minimo">Estoque mínimo</Label>

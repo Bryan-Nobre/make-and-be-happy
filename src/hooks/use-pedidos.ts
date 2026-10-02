@@ -172,7 +172,14 @@ export function useComandaMutations() {
     invalidar: [...invalidar, chaves.painelCozinha(empresa.id), chaves.estoque(empresa.id)],
   });
 
-  return { abrir, pedirConta, reabrir, transferir, encerrar, cancelar };
+  const definirCliente = useMutacao({
+    executar: ({ comandaId, clienteId }: { comandaId: string; clienteId: string | null }) =>
+      servico.definirClienteComanda(comandaId, clienteId),
+    sucesso: (_, { clienteId }) => (clienteId ? "Cliente vinculado." : "Cliente removido."),
+    invalidar: [...invalidar, chaves.clientes(empresa.id)],
+  });
+
+  return { abrir, pedirConta, reabrir, transferir, encerrar, cancelar, definirCliente };
 }
 
 export function usePedidoMutations() {
@@ -183,11 +190,13 @@ export function usePedidoMutations() {
     chaves.painelCozinha(empresa.id),
     chaves.estoque(empresa.id),
     chaves.dashboard(empresa.id),
+    chaves.clientes(empresa.id),
   ];
 
   const criar = useMutacao({
     executar: (entrada: {
       comandaId: string | null;
+      clienteId?: string | null;
       itens: servico.ItemNovo[];
       desconto: number;
       requisicaoId: string;

@@ -1,6 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ClipboardList, Copy, ImageOff, Package, Pencil, Plus, Trash2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import {
+  ClipboardList,
+  Copy,
+  ImageOff,
+  ImagePlus,
+  LayoutGrid,
+  Loader2,
+  List,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { DialogoFichaTecnica } from "@/components/shared/dialogo-ficha-tecnica";
@@ -20,8 +36,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +64,7 @@ import {
   useSetores,
 } from "@/hooks/use-catalogo";
 import { brl } from "@/lib/format";
+import { iconeDaCategoria } from "@/lib/icone-categoria";
 import { cn } from "@/lib/utils";
 import type { Categoria, GrupoAdicional, Produto, Setor } from "@/services/catalogo";
 
@@ -78,7 +107,10 @@ function Produtos() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Produtos" description="Gerencie o cardápio." />
+      <PageHeader
+        title="Produtos"
+        description="Cardápio, categorias, adicionais e setores de produção."
+      />
 
       {erro ? (
         <ErrorState
@@ -93,10 +125,9 @@ function Produtos() {
       ) : carregando ? (
         <LoadingState label="Carregando cardápio…" />
       ) : (
-        <Tabs defaultValue="produtos">
-          <TabsList>
+        <Tabs defaultValue="produtos" className="gap-5">
+          <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="produtos">Produtos</TabsTrigger>
-            <TabsTrigger value="categorias">Categorias</TabsTrigger>
             <TabsTrigger value="adicionais">Adicionais</TabsTrigger>
             <TabsTrigger value="setores">Setores</TabsTrigger>
           </TabsList>
@@ -108,9 +139,6 @@ function Produtos() {
               setores={setores.data ?? []}
               grupos={grupos.data ?? []}
             />
-          </TabsContent>
-          <TabsContent value="categorias">
-            <AbaCategorias categorias={categorias.data ?? []} produtos={produtos.data ?? []} />
           </TabsContent>
           <TabsContent value="adicionais">
             <AbaAdicionais grupos={grupos.data ?? []} />
@@ -128,6 +156,209 @@ function Produtos() {
 // Produtos
 // ---------------------------------------------------------------------------
 
+type Visao = "grade" | "lista";
+type FiltroDisponibilidade = "todos" | "disponiveis" | "indisponiveis" | "fora";
+
+const FILTROS_DISPONIBILIDADE: { id: FiltroDisponibilidade; rotulo: string }[] = [
+  { id: "todos", rotulo: "Todos os produtos" },
+  { id: "disponiveis", rotulo: "Disponíveis" },
+  { id: "indisponiveis", rotulo: "Indisponíveis" },
+  { id: "fora", rotulo: "Fora do cardápio" },
+];
+
+const passaNoFiltro = (p: Produto, filtro: FiltroDisponibilidade) =>
+  filtro === "todos" ||
+  (filtro === "disponiveis" && p.ativo && p.disponivel) ||
+  (filtro === "indisponiveis" && p.ativo && !p.disponivel) ||
+  (filtro === "fora" && !p.ativo);
+
+type AcoesProduto = {
+  editar: (p: Produto) => void;
+  fichaTecnica: (p: Produto) => void;
+  duplicar: (p: Produto) => void;
+  enviarImagem: (p: Produto) => void;
+  removerImagem: (p: Produto) => void;
+  alternarAtivo: (p: Produto, ativo: boolean) => void;
+  alternarDisponivel: (p: Produto, disponivel: boolean) => void;
+};
+
+/** URL temporária para pré-visualizar um arquivo local, liberada ao trocar ou desmontar. */
+function useUrlDoArquivo(arquivo: File | null) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!arquivo) {
+      setUrl(null);
+      return;
+    }
+    const criada = URL.createObjectURL(arquivo);
+    setUrl(criada);
+    return () => URL.revokeObjectURL(criada);
+  }, [arquivo]);
+  return url;
+}
+
+function situacaoDo(produto: Produto) {
+  if (!produto.ativo) return { rotulo: "Fora do cardápio", ponto: "bg-muted-foreground/50" };
+  return produto.disponivel
+    ? { rotulo: "Disponível", ponto: "bg-success" }
+    : { rotulo: "Indisponível", ponto: "bg-warning" };
+}
+
+function MiniaturaProduto({ produto, categoria }: { produto: Produto; categoria?: Categoria }) {
+  const Icone = iconeDaCategoria(categoria?.nome ?? "");
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+      {produto.imagemUrl ? (
+        <img src={produto.imagemUrl} alt="" loading="lazy" className="size-full object-cover" />
+      ) : (
+        <Icone className="size-4 text-muted-foreground/60" aria-hidden="true" />
+      )}
+    </span>
+  );
+}
+
+function MenuProduto({
+  produto,
+  acoes,
+  comAlternancias = true,
+  className,
+}: {
+  produto: Produto;
+  acoes: AcoesProduto;
+  comAlternancias?: boolean;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Ações de ${produto.nome}`}
+          className={cn(
+            "inline-flex size-8 cursor-pointer items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+            className,
+          )}
+        >
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onSelect={() => acoes.editar(produto)}>
+          <Pencil className="size-4" />
+          Editar
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => acoes.fichaTecnica(produto)}>
+          <ClipboardList className="size-4" />
+          Ficha técnica
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => acoes.duplicar(produto)}>
+          <Copy className="size-4" />
+          Duplicar
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => acoes.enviarImagem(produto)}>
+          <Upload className="size-4" />
+          {produto.imagemUrl ? "Trocar imagem" : "Enviar imagem"}
+        </DropdownMenuItem>
+        {produto.imagemUrl && (
+          <DropdownMenuItem onSelect={() => acoes.removerImagem(produto)}>
+            <ImageOff className="size-4" />
+            Remover imagem
+          </DropdownMenuItem>
+        )}
+        {comAlternancias && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={produto.ativo}
+              onCheckedChange={(ativo) => acoes.alternarAtivo(produto, ativo)}
+            >
+              No cardápio
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={produto.disponivel}
+              disabled={!produto.ativo}
+              onCheckedChange={(disponivel) => acoes.alternarDisponivel(produto, disponivel)}
+            >
+              Disponível para venda
+            </DropdownMenuCheckboxItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function CartaoProduto({
+  produto,
+  categoria,
+  acoes,
+  enviandoFoto = false,
+}: {
+  produto: Produto;
+  categoria?: Categoria;
+  acoes: AcoesProduto;
+  enviandoFoto?: boolean;
+}) {
+  const Icone = iconeDaCategoria(categoria?.nome ?? "");
+  const situacao = situacaoDo(produto);
+
+  return (
+    <article
+      className={cn(
+        "relative flex flex-col rounded-xl border border-border bg-card p-3 shadow-xs transition-[border-color,box-shadow] duration-150 hover:border-primary/30 hover:shadow-sm",
+        !produto.ativo && "opacity-70",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => acoes.editar(produto)}
+        aria-label={`Editar ${produto.nome}`}
+        className="absolute inset-0 z-[1] cursor-pointer rounded-xl focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+      />
+      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-muted/60">
+        {produto.imagemUrl ? (
+          <img src={produto.imagemUrl} alt="" loading="lazy" className="size-full object-cover" />
+        ) : (
+          <Icone className="size-9 text-muted-foreground/35" aria-hidden="true" />
+        )}
+        {enviandoFoto && (
+          <span
+            role="status"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-card/80 text-xs font-medium text-muted-foreground"
+          >
+            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+            Enviando foto…
+          </span>
+        )}
+      </div>
+      <MenuProduto produto={produto} acoes={acoes} className="absolute top-5 right-5 z-10" />
+
+      <div className="mt-3 flex flex-1 flex-col px-0.5">
+        <p className="truncate text-xs text-muted-foreground">
+          {categoria?.nome ?? "—"}
+          {produto.codigo && ` · ${produto.codigo}`}
+        </p>
+        <h3 className="mt-0.5 line-clamp-1 text-sm font-semibold text-foreground">
+          {produto.nome}
+        </h3>
+        {produto.descricao.trim() && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{produto.descricao}</p>
+        )}
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-x-2 gap-y-1 pt-3">
+          <span className="text-base font-bold text-foreground tabular-nums">
+            {brl(produto.preco)}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span aria-hidden="true" className={cn("size-1.5 rounded-full", situacao.ponto)} />
+            {situacao.rotulo}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function AbaProdutos({
   produtos,
   categorias,
@@ -141,26 +372,52 @@ function AbaProdutos({
 }) {
   const { salvar, alternarAtivo, alternarDisponivel, duplicar, enviarImagem, removerImagem } =
     useProdutoMutations();
+  const {
+    salvar: salvarCategoria,
+    renomear: renomearCategoria,
+    alternarAtiva: alternarCategoriaAtiva,
+    excluir: excluirCategoria,
+  } = useCategoriaMutations();
+  const [renomeandoCategoria, setRenomeandoCategoria] = useState<Categoria | null>(null);
   const [busca, setBusca] = useState("");
+  const [categoriaId, setCategoriaId] = useState<string | null>(null);
+  const [visao, setVisao] = useState<Visao>("grade");
+  const [filtro, setFiltro] = useState<FiltroDisponibilidade>("todos");
+  const [criandoCategoria, setCriandoCategoria] = useState(false);
   const [form, setForm] = useState<Formulario | null>(null);
+  const [foto, setFoto] = useState<File | null>(null);
+  const previaFoto = useUrlDoArquivo(foto);
   const seletorImagem = useRef<HTMLInputElement>(null);
+  const seletorFotoDoFormulario = useRef<HTMLInputElement>(null);
+
+  const abrirFormulario = (dados: Formulario) => {
+    setFoto(null);
+    setForm(dados);
+  };
+  const imagemAtual = produtos.find((p) => p.id === form?.id)?.imagemUrl ?? null;
   const [produtoDaImagem, setProdutoDaImagem] = useState<string | null>(null);
   const [produtoDaFicha, setProdutoDaFicha] = useState<{ id: string; nome: string } | null>(null);
 
   const categoriaDe = (p: Produto) => categorias.find((c) => c.id === p.categoriaId);
   const setorDe = (p: Produto) => setores.find((s) => s.id === p.setorId);
+  const categoriaSelecionada = categorias.find((c) => c.id === categoriaId) ?? null;
+  const quantidadeNa = (id: string) => produtos.filter((p) => p.categoriaId === id).length;
 
   const termo = busca.trim().toLowerCase();
   const lista = produtos.filter(
-    (p) => p.nome.toLowerCase().includes(termo) || p.codigo.toLowerCase().includes(termo),
+    (p) =>
+      (!categoriaSelecionada || p.categoriaId === categoriaSelecionada.id) &&
+      passaNoFiltro(p, filtro) &&
+      (p.nome.toLowerCase().includes(termo) || p.codigo.toLowerCase().includes(termo)),
   );
+  const refinando = termo !== "" || filtro !== "todos";
 
   const novo = (): Formulario => ({
     nome: "",
     codigo: "",
     preco: 0,
     descricao: "",
-    categoriaId: categorias[0]?.id ?? "",
+    categoriaId: categoriaSelecionada?.id ?? categorias[0]?.id ?? "",
     setorId: setores[0]?.id ?? "",
     grupoIds: [],
   });
@@ -176,152 +433,449 @@ function AbaProdutos({
     grupoIds: produto.grupoIds,
   });
 
+  const acoes: AcoesProduto = {
+    editar: (p) => abrirFormulario(editar(p)),
+    fichaTecnica: (p) => setProdutoDaFicha({ id: p.id, nome: p.nome }),
+    duplicar: (p) => duplicar.mutate(p),
+    enviarImagem: (p) => {
+      setProdutoDaImagem(p.id);
+      seletorImagem.current?.click();
+    },
+    removerImagem: (p) => removerImagem.mutate(p.id),
+    alternarAtivo: (p, ativo) => alternarAtivo.mutate({ id: p.id, ativo }),
+    alternarDisponivel: (p, disponivel) => alternarDisponivel.mutate({ id: p.id, disponivel }),
+  };
+
+  const dialogoCategoria = (
+    <DialogoRenomear
+      titulo="Nova categoria"
+      descricao="Todo produto pertence a uma categoria do cardápio."
+      nomeAtual={criandoCategoria ? "" : null}
+      maximo={60}
+      salvando={salvarCategoria.isPending}
+      aoFechar={() => setCriandoCategoria(false)}
+      aoSalvar={(nome) =>
+        salvarCategoria.mutate(
+          { nome, ordem: categorias.length + 1 },
+          { onSuccess: () => setCriandoCategoria(false) },
+        )
+      }
+    />
+  );
+
   if (categorias.length === 0) {
     return (
-      <EmptyState
-        icon={Package}
-        title="Crie uma categoria primeiro"
-        description="Todo produto pertence a uma categoria. Use a aba Categorias para criar a primeira."
-      />
+      <>
+        <EmptyState
+          icon={Package}
+          title="Crie uma categoria primeiro"
+          description="Todo produto pertence a uma categoria."
+          action={
+            <Button onClick={() => setCriandoCategoria(true)}>
+              <Plus className="size-4" />
+              Nova categoria
+            </Button>
+          }
+        />
+        {dialogoCategoria}
+      </>
     );
   }
 
+  const opcoesCategoria = [
+    { id: null, nome: "Todos", quantidade: produtos.length, ativa: true },
+    ...categorias.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      quantidade: quantidadeNa(c.id),
+      ativa: c.ativa,
+    })),
+  ];
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="h-11 max-w-sm"
-          placeholder="Buscar por nome ou código"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-        <Button className="h-11" onClick={() => setForm(novo())}>
+    <div className="grid items-start gap-5 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15.5rem_minmax(0,1fr)]">
+      <aside
+        aria-label="Categorias"
+        className="hidden flex-col rounded-xl border border-border bg-card p-3 shadow-xs md:sticky md:top-20 md:flex md:max-h-[calc(100dvh-7rem)]"
+      >
+        <h2 className="px-2 pt-1 pb-3 text-base font-semibold text-foreground">Categorias</h2>
+        <nav className="-mx-1 flex-1 space-y-1 overflow-y-auto px-1 pb-1">
+          {opcoesCategoria.map((c) => {
+            const ativo = categoriaSelecionada?.id === c.id || (!categoriaSelecionada && !c.id);
+            const Icone = c.id ? iconeDaCategoria(c.nome) : LayoutGrid;
+            return (
+              <button
+                key={c.id ?? "todos"}
+                type="button"
+                aria-pressed={ativo}
+                onClick={() => setCategoriaId(c.id)}
+                className={cn(
+                  "flex h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg border px-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  ativo
+                    ? "border-primary/40 bg-primary-soft font-semibold text-primary-strong"
+                    : "border-transparent text-foreground hover:bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md",
+                    ativo ? "bg-card" : "bg-muted",
+                  )}
+                >
+                  <Icone className="size-4" aria-hidden="true" />
+                </span>
+                <span
+                  className={cn("min-w-0 flex-1 truncate", !c.ativa && "text-muted-foreground")}
+                >
+                  {c.nome}
+                  {!c.ativa && <span className="sr-only"> (inativa)</span>}
+                </span>
+                <span
+                  className={cn(
+                    "flex h-5 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums",
+                    ativo ? "bg-card text-primary-strong" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {c.quantidade}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        <Button variant="outline" className="mt-3 w-full" onClick={() => setCriandoCategoria(true)}>
           <Plus className="size-4" />
-          Novo produto
+          Nova categoria
         </Button>
+      </aside>
+
+      <div className="min-w-0 space-y-4">
+        <div
+          className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden"
+          role="group"
+          aria-label="Categorias"
+        >
+          {opcoesCategoria.map((c) => {
+            const ativo = categoriaSelecionada?.id === c.id || (!categoriaSelecionada && !c.id);
+            return (
+              <button
+                key={c.id ?? "todos"}
+                type="button"
+                aria-pressed={ativo}
+                onClick={() => setCategoriaId(c.id)}
+                className={cn(
+                  "flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors",
+                  ativo
+                    ? "border-primary/30 bg-primary-soft text-primary-strong"
+                    : "border-border bg-card text-muted-foreground",
+                )}
+              >
+                {c.nome}
+                <span className="text-xs tabular-nums opacity-80">{c.quantidade}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setCriandoCategoria(true)}
+            className="flex h-9 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-dashed border-border px-3.5 text-sm font-medium whitespace-nowrap text-muted-foreground"
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Categoria
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <Search
+              className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              className="pl-9"
+              placeholder="Buscar produto..."
+              aria-label="Buscar produto por nome ou código"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <div
+              className="flex rounded-lg border border-border bg-card p-0.5"
+              role="group"
+              aria-label="Visualização"
+            >
+              {(
+                [
+                  { id: "grade", rotulo: "Grade", Icone: LayoutGrid },
+                  { id: "lista", rotulo: "Lista", Icone: List },
+                ] as const
+              ).map(({ id, rotulo, Icone }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={visao === id}
+                  aria-label={rotulo}
+                  title={rotulo}
+                  onClick={() => setVisao(id)}
+                  className={cn(
+                    "flex size-8.5 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                    visao === id
+                      ? "bg-primary-soft text-primary-strong"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icone className="size-4" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="relative">
+                  <SlidersHorizontal className="size-4" />
+                  Filtros
+                  {filtro !== "todos" && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-card bg-primary"
+                    />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel>Mostrar</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={filtro}
+                  onValueChange={(v) => setFiltro(v as FiltroDisponibilidade)}
+                >
+                  {FILTROS_DISPONIBILIDADE.map((f) => (
+                    <DropdownMenuRadioItem key={f.id} value={f.id}>
+                      {f.rotulo}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button className="flex-1 sm:flex-none" onClick={() => abrirFormulario(novo())}>
+              <Plus className="size-4" />
+              Novo produto
+            </Button>
+          </div>
+        </div>
+
+        <section
+          aria-label={categoriaSelecionada?.nome ?? "Todos os produtos"}
+          className="rounded-xl bg-muted/40 p-3 sm:p-4"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2 px-1">
+            <h2 className="flex min-w-0 items-baseline gap-2 text-lg font-semibold text-foreground">
+              <span className="truncate">{categoriaSelecionada?.nome ?? "Todos os produtos"}</span>
+              <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                ({lista.length})
+              </span>
+              {categoriaSelecionada && !categoriaSelecionada.ativa && (
+                <StatusBadge tone="neutral" className="self-center">
+                  Inativa
+                </StatusBadge>
+              )}
+            </h2>
+            {categoriaSelecionada && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Ações da categoria ${categoriaSelecionada.nome}`}
+                    className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    <MoreHorizontal className="size-4" aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onSelect={() => setRenomeandoCategoria(categoriaSelecionada)}>
+                    <Pencil className="size-4" />
+                    Renomear categoria
+                  </DropdownMenuItem>
+                  <DropdownMenuCheckboxItem
+                    checked={categoriaSelecionada.ativa}
+                    onCheckedChange={(ativa) =>
+                      alternarCategoriaAtiva.mutate({ id: categoriaSelecionada.id, ativa })
+                    }
+                  >
+                    Categoria ativa
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={quantidadeNa(categoriaSelecionada.id) > 0}
+                    onSelect={() =>
+                      excluirCategoria.mutate(categoriaSelecionada.id, {
+                        onSuccess: () => setCategoriaId(null),
+                      })
+                    }
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                    Excluir categoria
+                  </DropdownMenuItem>
+                  {quantidadeNa(categoriaSelecionada.id) > 0 && (
+                    <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+                      Só é possível excluir categorias sem produtos.
+                    </p>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {lista.length === 0 && refinando ? (
+            <EmptyState
+              icon={Search}
+              title="Nenhum produto encontrado"
+              description="Ajuste a busca ou os filtros."
+              className="border-0 bg-transparent py-10"
+            />
+          ) : visao === "grade" ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
+              <button
+                type="button"
+                onClick={() => abrirFormulario(novo())}
+                className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-primary/30 bg-card/60 p-4 text-center text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-card focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <Plus className="size-5" aria-hidden="true" />
+                </span>
+                <span>
+                  Adicionar produto
+                  {categoriaSelecionada && (
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      em {categoriaSelecionada.nome}
+                    </span>
+                  )}
+                </span>
+              </button>
+              {lista.map((produto) => (
+                <CartaoProduto
+                  key={produto.id}
+                  produto={produto}
+                  categoria={categoriaDe(produto)}
+                  acoes={acoes}
+                  enviandoFoto={
+                    enviarImagem.isPending && enviarImagem.variables?.produtoId === produto.id
+                  }
+                />
+              ))}
+            </div>
+          ) : lista.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="Nenhum produto nesta categoria"
+              description="Cadastre o primeiro item."
+              className="border-0 bg-transparent py-10"
+              action={
+                <Button onClick={() => abrirFormulario(novo())}>
+                  <Plus className="size-4" />
+                  Novo produto
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
+              <table className="w-full min-w-[46rem] text-sm">
+                <thead className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Produto</th>
+                    <th className="px-4 py-3 font-medium">Categoria</th>
+                    <th className="px-4 py-3 font-medium">Setor</th>
+                    <th className="px-4 py-3 text-right font-medium">Preço</th>
+                    <th className="px-4 py-3 font-medium">No cardápio</th>
+                    <th className="px-4 py-3 font-medium">Disponível</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {lista.map((produto) => (
+                    <tr
+                      key={produto.id}
+                      className={cn("hover:bg-muted/40", !produto.ativo && "opacity-60")}
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <MiniaturaProduto produto={produto} categoria={categoriaDe(produto)} />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{produto.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {produto.codigo || "Sem código"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {categoriaDe(produto)?.nome ?? "—"}
+                        {categoriaDe(produto)?.ativa === false && (
+                          <StatusBadge tone="danger" className="ml-2">
+                            Inativa
+                          </StatusBadge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {setorDe(produto)?.nome ?? "—"}
+                        {setorDe(produto)?.ativo === false && (
+                          <StatusBadge tone="danger" className="ml-2">
+                            Inativo
+                          </StatusBadge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
+                        {brl(produto.preco)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Switch
+                          checked={produto.ativo}
+                          onCheckedChange={(ativo) => acoes.alternarAtivo(produto, ativo)}
+                          aria-label={`${produto.nome} no cardápio`}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Switch
+                          checked={produto.disponivel}
+                          disabled={!produto.ativo}
+                          onCheckedChange={(disponivel) =>
+                            acoes.alternarDisponivel(produto, disponivel)
+                          }
+                          aria-label={`${produto.nome} disponível para venda`}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <MenuProduto produto={produto} acoes={acoes} comAlternancias={false} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
 
-      {lista.length === 0 ? (
-        <EmptyState
-          icon={Package}
-          title="Nenhum produto"
-          description="Ajuste a busca ou cadastre o primeiro item do cardápio."
-        />
-      ) : (
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full text-sm">
-            <thead className="border-b text-left text-muted-foreground">
-              <tr>
-                <th className="p-3">Código</th>
-                <th className="p-3">Nome</th>
-                <th className="p-3">Categoria</th>
-                <th className="p-3">Setor</th>
-                <th className="p-3 text-right">Preço</th>
-                <th className="p-3">No cardápio</th>
-                <th className="p-3">Disponível</th>
-                <th className="p-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {lista.map((produto) => (
-                <tr key={produto.id} className={produto.ativo ? "" : "opacity-60"}>
-                  <td className="p-3 text-muted-foreground">{produto.codigo || "—"}</td>
-                  <td className="p-3 font-medium">{produto.nome}</td>
-                  <td className="p-3">
-                    {categoriaDe(produto)?.nome ?? "—"}
-                    {categoriaDe(produto)?.ativa === false && (
-                      <StatusBadge tone="danger" className="ml-2">
-                        Inativa
-                      </StatusBadge>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    {setorDe(produto)?.nome ?? "—"}
-                    {setorDe(produto)?.ativo === false && (
-                      <StatusBadge tone="danger" className="ml-2">
-                        Inativo
-                      </StatusBadge>
-                    )}
-                  </td>
-                  <td className="p-3 text-right tabular-nums">{brl(produto.preco)}</td>
-                  <td className="p-3">
-                    <Switch
-                      checked={produto.ativo}
-                      onCheckedChange={(ativo) => alternarAtivo.mutate({ id: produto.id, ativo })}
-                      aria-label={`${produto.nome} no cardápio`}
-                    />
-                  </td>
-                  <td className="p-3">
-                    <Switch
-                      checked={produto.disponivel}
-                      disabled={!produto.ativo}
-                      onCheckedChange={(disponivel) =>
-                        alternarDisponivel.mutate({ id: produto.id, disponivel })
-                      }
-                      aria-label={`${produto.nome} disponível para venda`}
-                    />
-                  </td>
-                  <td className="p-3">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setProdutoDaImagem(produto.id);
-                          seletorImagem.current?.click();
-                        }}
-                        aria-label={`Enviar imagem de ${produto.nome}`}
-                      >
-                        <Upload className="size-4" />
-                      </Button>
-                      {produto.imagemUrl && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removerImagem.mutate(produto.id)}
-                          aria-label={`Remover imagem de ${produto.nome}`}
-                        >
-                          <ImageOff className="size-4" />
-                        </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setForm(editar(produto))}
-                        aria-label={`Editar ${produto.nome}`}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setProdutoDaFicha({ id: produto.id, nome: produto.nome })}
-                        aria-label={`Ficha técnica de ${produto.nome}`}
-                        title="Ficha técnica"
-                      >
-                        <ClipboardList className="size-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => duplicar.mutate(produto)}
-                        aria-label={`Duplicar ${produto.nome}`}
-                      >
-                        <Copy className="size-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {dialogoCategoria}
+      <DialogoRenomear
+        titulo="Renomear categoria"
+        descricao="O novo nome vale para todos os produtos desta categoria."
+        nomeAtual={renomeandoCategoria?.nome ?? null}
+        maximo={60}
+        salvando={renomearCategoria.isPending}
+        aoFechar={() => setRenomeandoCategoria(null)}
+        aoSalvar={(novoNome) =>
+          renomeandoCategoria &&
+          renomearCategoria.mutate(
+            { id: renomeandoCategoria.id, nome: novoNome },
+            { onSuccess: () => setRenomeandoCategoria(null) },
+          )
+        }
+      />
 
       <input
         ref={seletorImagem}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         className="hidden"
         onChange={(e) => {
           const arquivo = e.target.files?.[0];
@@ -346,6 +900,52 @@ function AbaProdutos({
 
           {form && (
             <div className="grid gap-3">
+              <div className="flex items-center gap-4">
+                <div className="flex aspect-[4/3] w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/60">
+                  {(previaFoto ?? imagemAtual) ? (
+                    <img
+                      src={previaFoto ?? imagemAtual ?? undefined}
+                      alt="Foto do produto"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <ImagePlus className="size-6 text-muted-foreground/50" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => seletorFotoDoFormulario.current?.click()}
+                    >
+                      <Upload className="size-4" />
+                      {(previaFoto ?? imagemAtual) ? "Trocar foto" : "Escolher foto"}
+                    </Button>
+                    {foto && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setFoto(null)}>
+                        Desfazer
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG ou WebP. A foto é convertida para WebP automaticamente.
+                  </p>
+                </div>
+                <input
+                  ref={seletorFotoDoFormulario}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const arquivo = e.target.files?.[0];
+                    e.target.value = "";
+                    if (arquivo) setFoto(arquivo);
+                  }}
+                />
+              </div>
+
               <div className="grid gap-1">
                 <Label htmlFor="produto-nome">Nome</Label>
                 <Input
@@ -378,9 +978,8 @@ function AbaProdutos({
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1">
                   <Label htmlFor="produto-categoria">Categoria</Label>
-                  <select
+                  <NativeSelect
                     id="produto-categoria"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={form.categoriaId}
                     onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
                   >
@@ -389,13 +988,12 @@ function AbaProdutos({
                         {c.nome}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="grid gap-1">
                   <Label htmlFor="produto-setor">Setor de produção</Label>
-                  <select
+                  <NativeSelect
                     id="produto-setor"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={form.setorId}
                     onChange={(e) => setForm({ ...form, setorId: e.target.value })}
                   >
@@ -405,7 +1003,7 @@ function AbaProdutos({
                         {s.nome}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
               </div>
 
@@ -459,7 +1057,12 @@ function AbaProdutos({
                     ...form,
                     setorId: form.setorId || null,
                   },
-                  { onSuccess: () => setForm(null) },
+                  {
+                    onSuccess: (produtoId) => {
+                      if (foto) enviarImagem.mutate({ produtoId, arquivo: foto });
+                      setForm(null);
+                    },
+                  },
                 );
               }}
             >
@@ -468,92 +1071,6 @@ function AbaProdutos({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Categorias
-// ---------------------------------------------------------------------------
-
-function AbaCategorias({ categorias, produtos }: { categorias: Categoria[]; produtos: Produto[] }) {
-  const { salvar, renomear, alternarAtiva, excluir } = useCategoriaMutations();
-  const [nome, setNome] = useState("");
-  const [renomeando, setRenomeando] = useState<Categoria | null>(null);
-
-  return (
-    <div className="space-y-3">
-      <form
-        className="flex max-w-md gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (nome.trim().length === 0) return;
-          salvar.mutate({ nome, ordem: categorias.length + 1 }, { onSuccess: () => setNome("") });
-        }}
-      >
-        <Input
-          placeholder="Nova categoria"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          aria-label="Nome da nova categoria"
-        />
-        <Button type="submit" disabled={salvar.isPending}>
-          Adicionar
-        </Button>
-      </form>
-
-      <ul className="divide-y rounded-lg border bg-card">
-        {categorias.map((categoria) => {
-          const usos = produtos.filter((p) => p.categoriaId === categoria.id).length;
-
-          return (
-            <li key={categoria.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-              <span className="font-medium">{categoria.nome}</span>
-              <span className="flex items-center gap-3 text-muted-foreground">
-                {usos} {usos === 1 ? "produto" : "produtos"}
-                <Switch
-                  checked={categoria.ativa}
-                  onCheckedChange={(ativa) => alternarAtiva.mutate({ id: categoria.id, ativa })}
-                  aria-label={`Categoria ${categoria.nome} ativa`}
-                />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setRenomeando(categoria)}
-                  aria-label={`Renomear ${categoria.nome}`}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  disabled={usos > 0}
-                  onClick={() => excluir.mutate(categoria.id)}
-                  aria-label={`Excluir ${categoria.nome}`}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
-      <DialogoRenomear
-        titulo="Renomear categoria"
-        descricao="O novo nome vale para todos os produtos desta categoria."
-        nomeAtual={renomeando?.nome ?? null}
-        maximo={60}
-        salvando={renomear.isPending}
-        aoFechar={() => setRenomeando(null)}
-        aoSalvar={(novoNome) =>
-          renomeando &&
-          renomear.mutate(
-            { id: renomeando.id, nome: novoNome },
-            { onSuccess: () => setRenomeando(null) },
-          )
-        }
-      />
     </div>
   );
 }

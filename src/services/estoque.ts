@@ -64,9 +64,12 @@ export type EntradaItemEstoque = {
   quantidadeMinima: number;
 };
 
+export function formatarNumeroQuantidade(quantidade: number): string {
+  return quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+}
+
 export function formatarQuantidade(quantidade: number, unidade: UnidadeEstoque): string {
-  const numero = quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
-  return `${numero} ${UNIDADE_LABEL[unidade]}`;
+  return `${formatarNumeroQuantidade(quantidade)} ${UNIDADE_LABEL[unidade]}`;
 }
 
 // ---------------------------------------------------------------------------

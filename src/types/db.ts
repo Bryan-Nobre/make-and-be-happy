@@ -371,6 +371,85 @@ export type Database = {
           },
         ];
       };
+      fichas_item_pedido: {
+        Row: {
+          empresa_id: string;
+          item_pedido_id: string;
+          produto_id: string;
+          registrada_em: string;
+        };
+        Insert: {
+          empresa_id: string;
+          item_pedido_id: string;
+          produto_id: string;
+          registrada_em?: string;
+        };
+        Update: {
+          empresa_id?: string;
+          item_pedido_id?: string;
+          produto_id?: string;
+          registrada_em?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "fichas_item_pedido_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      fichas_item_pedido_insumos: {
+        Row: {
+          empresa_id: string;
+          item_id: string;
+          item_pedido_id: string;
+          quantidade: number;
+        };
+        Insert: {
+          empresa_id: string;
+          item_id: string;
+          item_pedido_id: string;
+          quantidade: number;
+        };
+        Update: {
+          empresa_id?: string;
+          item_id?: string;
+          item_pedido_id?: string;
+          quantidade?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "fichas_item_pedido_insumos_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "fichas_item_pedido_insumos_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "fichas_item_pedido_insumos_item_fk";
+            columns: ["empresa_id", "item_id"];
+            isOneToOne: false;
+            referencedRelation: "itens_estoque_status";
+            referencedColumns: ["empresa_id", "id"];
+          },
+          {
+            foreignKeyName: "fichas_item_pedido_insumos_item_pedido_id_fkey";
+            columns: ["item_pedido_id"];
+            isOneToOne: false;
+            referencedRelation: "fichas_item_pedido";
+            referencedColumns: ["item_pedido_id"];
+          },
+        ];
+      };
       formas_pagamento: {
         Row: {
           ativa: boolean;
@@ -1845,6 +1924,7 @@ export type Database = {
         Args: {
           p_acrescimo?: number;
           p_client_request_id?: string;
+          p_cliente?: string;
           p_comanda?: string;
           p_confirmar?: boolean;
           p_desconto?: number;
@@ -1854,6 +1934,10 @@ export type Database = {
           p_origem: Database["public"]["Enums"]["origem_pedido"];
         };
         Returns: string;
+      };
+      definir_cliente_comanda: {
+        Args: { p_cliente: string; p_comanda: string };
+        Returns: undefined;
       };
       definir_ficha_tecnica: {
         Args: { p_insumos: Json; p_produto: string };
@@ -1876,6 +1960,20 @@ export type Database = {
           p_sessao: string;
         };
         Returns: undefined;
+      };
+      historico_cliente: {
+        Args: { p_cliente: string; p_empresa: string };
+        Returns: {
+          comanda_numero: number;
+          criado_em: string;
+          id: string;
+          nome_mesa: string;
+          numero: number;
+          origem: Database["public"]["Enums"]["origem_pedido"];
+          status_financeiro: Database["public"]["Enums"]["status_financeiro_pedido"];
+          status_operacional: Database["public"]["Enums"]["status_operacional_pedido"];
+          total: number;
+        }[];
       };
       listar_membros: {
         Args: { p_empresa: string };
@@ -1935,11 +2033,15 @@ export type Database = {
           status: Database["public"]["Enums"]["status_operacional_pedido"];
         }[];
       };
+      pedir_conta: { Args: { p_comanda: string }; Returns: undefined };
       pendencias_caixa: {
         Args: { p_empresa: string };
-        Returns: { comandas: number; pedidos: number; valor: number }[];
+        Returns: {
+          comandas: number;
+          pedidos: number;
+          valor: number;
+        }[];
       };
-      pedir_conta: { Args: { p_comanda: string }; Returns: undefined };
       reabrir_comanda: { Args: { p_comanda: string }; Returns: undefined };
       registrar_pagamento: {
         Args: {
@@ -2009,6 +2111,14 @@ export type Database = {
       renomear_membro: {
         Args: { p_membro: string; p_nome_exibicao: string };
         Returns: undefined;
+      };
+      resumo_cliente: {
+        Args: { p_cliente: string; p_empresa: string };
+        Returns: {
+          pedidos: number;
+          total_gasto: number;
+          ultimo_pedido: string;
+        }[];
       };
       resumo_dashboard: {
         Args: { p_empresa: string };

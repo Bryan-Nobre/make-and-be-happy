@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { OrigemPedido, StatusFinanceiro, StatusPedido } from "@/services/pedidos";
 
 export type Cliente = {
   id: string;
@@ -48,7 +49,8 @@ export type EntradaCliente = {
   observacoes: string;
 };
 
-export async function salvarCliente(empresaId: string, entrada: EntradaCliente): Promise<void> {
+/** Devolve o id do cliente salvo. */
+export async function salvarCliente(empresaId: string, entrada: EntradaCliente): Promise<string> {
   const valores = {
     nome: entrada.nome.trim(),
     telefone: entrada.telefone.trim() || null,
@@ -56,11 +58,72 @@ export async function salvarCliente(empresaId: string, entrada: EntradaCliente):
     observacoes: entrada.observacoes.trim() || null,
   };
 
-  const { error } = entrada.id
-    ? await supabase.from("clientes").update(valores).eq("id", entrada.id)
-    : await supabase.from("clientes").insert({ empresa_id: empresaId, ...valores });
+  if (entrada.id) {
+    const { error } = await supabase.from("clientes").update(valores).eq("id", entrada.id);
+    if (error) throw error;
+    return entrada.id;
+  }
 
+  const { data, error } = await supabase
+    .from("clientes")
+    .insert({ empresa_id: empresaId, ...valores })
+    .select("id")
+    .single();
   if (error) throw error;
+  return data.id;
+}
+
+export type PedidoDoCliente = {
+  id: string;
+  numero: number;
+  origem: OrigemPedido;
+  status: StatusPedido;
+  statusFinanceiro: StatusFinanceiro;
+  total: number;
+  criadoEm: string;
+  nomeMesa: string | null;
+};
+
+export type HistoricoCliente = {
+  pedidos: number;
+  totalGasto: number;
+  ultimoPedido: string | null;
+  recentes: PedidoDoCliente[];
+};
+
+/**
+ * Pedidos do cliente: os de balcão vinculados a ele e os das comandas dele.
+ * Totais calculados no banco, sobre pedidos não cancelados.
+ */
+export async function buscarHistoricoCliente(
+  empresaId: string,
+  clienteId: string,
+): Promise<HistoricoCliente> {
+  const args = { p_empresa: empresaId, p_cliente: clienteId };
+  const [historico, resumo] = await Promise.all([
+    supabase.rpc("historico_cliente", args),
+    supabase.rpc("resumo_cliente", args),
+  ]);
+
+  if (historico.error) throw historico.error;
+  if (resumo.error) throw resumo.error;
+
+  const linha = resumo.data[0];
+  return {
+    pedidos: Number(linha?.pedidos ?? 0),
+    totalGasto: Number(linha?.total_gasto ?? 0),
+    ultimoPedido: linha?.ultimo_pedido ?? null,
+    recentes: historico.data.map((p) => ({
+      id: p.id,
+      numero: Number(p.numero),
+      origem: p.origem,
+      status: p.status_operacional,
+      statusFinanceiro: p.status_financeiro,
+      total: Number(p.total),
+      criadoEm: p.criado_em,
+      nomeMesa: p.nome_mesa,
+    })),
+  };
 }
 
 /** Cliente não é excluído: preserva-se o vínculo com o histórico de pedidos. */

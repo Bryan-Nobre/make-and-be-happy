@@ -1,3 +1,4 @@
+import { converterParaWebp } from "@/lib/imagem-webp";
 import { supabase } from "@/lib/supabase";
 
 export type Categoria = {
@@ -247,12 +248,12 @@ export async function enviarImagemProduto(
   produtoId: string,
   arquivo: File,
 ): Promise<string> {
-  const extensao = arquivo.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const caminho = `${empresaId}/${produtoId}-${Date.now()}.${extensao}`;
+  const webp = await converterParaWebp(arquivo);
+  const caminho = `${empresaId}/${produtoId}-${Date.now()}.webp`;
 
   const { error: erroUpload } = await supabase.storage
     .from(BUCKET_PRODUTOS)
-    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: true });
+    .upload(caminho, webp, { contentType: "image/webp", upsert: true });
 
   if (erroUpload) throw erroUpload;
 

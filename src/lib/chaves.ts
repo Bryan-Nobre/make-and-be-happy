@@ -10,6 +10,8 @@ export const chaves = {
   produtos: (empresaId: string) => ["produtos", empresaId] as const,
   gruposAdicionais: (empresaId: string) => ["grupos-adicionais", empresaId] as const,
   clientes: (empresaId: string) => ["clientes", empresaId] as const,
+  historicoCliente: (empresaId: string, clienteId: string) =>
+    ["clientes", empresaId, "historico", clienteId] as const,
   mesas: (empresaId: string) => ["mesas", empresaId] as const,
   formasPagamento: (empresaId: string) => ["formas-pagamento", empresaId] as const,
   membros: (empresaId: string) => ["membros", empresaId] as const,

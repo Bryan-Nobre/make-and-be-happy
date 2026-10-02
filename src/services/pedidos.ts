@@ -37,6 +37,8 @@ export type ComandaResumo = {
   valorPago: number;
   pedidosEmProducao: number;
   abertaEm: string;
+  clienteId: string | null;
+  nomeCliente: string | null;
 };
 
 export type ItemDoPedido = {
@@ -134,7 +136,7 @@ export async function buscarComanda(
   const { data, error } = await supabase
     .from("comandas_resumo")
     .select(
-      "id, numero, mesa_id, nome_mesa, pessoas, status, taxa_servico_percentual, subtotal, taxa_servico, total, valor_pago, pedidos_em_producao, aberta_em",
+      "id, numero, mesa_id, nome_mesa, pessoas, status, taxa_servico_percentual, subtotal, taxa_servico, total, valor_pago, pedidos_em_producao, aberta_em, cliente_id, nome_cliente",
     )
     .eq("empresa_id", empresaId)
     .eq("id", comandaId)
@@ -157,6 +159,8 @@ export async function buscarComanda(
     valorPago: Number(data.valor_pago ?? 0),
     pedidosEmProducao: data.pedidos_em_producao ?? 0,
     abertaEm: data.aberta_em ?? new Date().toISOString(),
+    clienteId: data.cliente_id,
+    nomeCliente: data.nome_cliente,
   };
 }
 
@@ -248,6 +252,19 @@ export async function transferirComanda(comandaId: string, mesaDestinoId: string
   if (error) throw error;
 }
 
+/** `clienteId` nulo remove o vínculo. */
+export async function definirClienteComanda(
+  comandaId: string,
+  clienteId: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc("definir_cliente_comanda", {
+    p_comanda: comandaId,
+    // A RPC aceita nulo para desvincular; o tipo gerado não expressa isso.
+    p_cliente: clienteId as string,
+  });
+  if (error) throw error;
+}
+
 export async function encerrarComanda(comandaId: string): Promise<void> {
   const { error } = await supabase.rpc("encerrar_comanda", { p_comanda: comandaId });
   if (error) throw error;
@@ -269,6 +286,7 @@ export async function criarPedido(
   empresaId: string,
   entrada: {
     comandaId: string | null;
+    clienteId?: string | null;
     itens: ItemNovo[];
     desconto: number;
     requisicaoId: string;
@@ -289,6 +307,7 @@ export async function criarPedido(
     p_confirmar: true,
     p_desconto: entrada.desconto,
     p_client_request_id: entrada.requisicaoId,
+    p_cliente: entrada.clienteId ?? undefined,
   });
 
   if (error) throw error;

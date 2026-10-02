@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import { RotaProtegida } from "@/components/layout/rota-protegida";
 import { EmptyState } from "@/components/shared/empty-state";
+import { LogoEmpresa } from "@/components/shared/logo-empresa";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -352,6 +353,7 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
           <p className="flex min-w-0 flex-1 items-center gap-2 text-sm">
             {empresa && (
               <>
+                <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-7" />
                 <span className="hidden truncate text-muted-foreground sm:inline">
                   {empresa.nome}
                 </span>

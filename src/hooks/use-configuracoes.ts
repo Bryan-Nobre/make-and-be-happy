@@ -26,11 +26,23 @@ export function useEmpresaMutations() {
     aoConcluir: recarregar,
   });
 
+  const enviarLogo = useMutacao({
+    executar: (arquivo: File) => servico.enviarLogo(empresa.id, arquivo, empresa.logoUrl),
+    sucesso: "Logo atualizado.",
+    aoConcluir: recarregar,
+  });
+
+  const removerLogo = useMutacao({
+    executar: () => servico.removerLogo(empresa.id, empresa.logoUrl),
+    sucesso: "Logo removido.",
+    aoConcluir: recarregar,
+  });
+
   const alternarFormaPagamento = useMutacao({
     executar: ({ metodo, ativa }: { metodo: servico.MetodoPagamento; ativa: boolean }) =>
       servico.definirFormaPagamentoAtiva(empresa.id, metodo, ativa),
     invalidar: [chaves.formasPagamento(empresa.id)],
   });
 
-  return { salvar, alternarFormaPagamento };
+  return { salvar, enviarLogo, removerLogo, alternarFormaPagamento };
 }

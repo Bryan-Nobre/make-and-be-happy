@@ -16,6 +16,16 @@ export function useClientes() {
   });
 }
 
+export function useHistoricoCliente(clienteId: string | null) {
+  const { empresa } = useEmpresaAtual();
+
+  return useQuery({
+    queryKey: chaves.historicoCliente(empresa.id, clienteId ?? ""),
+    queryFn: () => servico.buscarHistoricoCliente(empresa.id, clienteId ?? ""),
+    enabled: !!clienteId,
+  });
+}
+
 export function useClienteMutations() {
   const { empresa } = useEmpresaAtual();
   const invalidar = [chaves.clientes(empresa.id)];

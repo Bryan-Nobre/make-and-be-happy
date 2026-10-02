@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { DialogoPagamento } from "@/components/shared/payment-dialog";
+import { BotaoCliente, SeletorCliente } from "@/components/shared/seletor-cliente";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
   AlertDialog,
@@ -517,6 +518,7 @@ function DetalheComanda({
   const [cancelandoComanda, setCancelandoComanda] = useState(false);
   const [recebendo, setRecebendo] = useState(false);
   const [reabrindo, setReabrindo] = useState(false);
+  const [escolhendoCliente, setEscolhendoCliente] = useState(false);
 
   // Nota: estas verificações controlam apenas a interface. As funções do
   // banco validam o papel de quem chama em cada operação.
@@ -547,6 +549,21 @@ function DetalheComanda({
 
   return (
     <>
+      <BotaoCliente
+        nome={c.nomeCliente}
+        disabled={acoes.definirCliente.isPending}
+        onClick={() => setEscolhendoCliente(true)}
+      />
+      <SeletorCliente
+        aberto={escolhendoCliente}
+        atualId={c.clienteId}
+        aoFechar={() => setEscolhendoCliente(false)}
+        aoEscolher={(escolhido) => {
+          setEscolhendoCliente(false);
+          acoes.definirCliente.mutate({ comandaId: c.id, clienteId: escolhido?.id ?? null });
+        }}
+      />
+
       <ListaPedidos pedidos={pedidos.data} />
 
       <dl className="space-y-2 text-sm">
