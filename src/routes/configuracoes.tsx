@@ -1,9 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Check, Minus, Plus, Trash2, Upload } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  BarChart3,
+  Boxes,
+  Check,
+  ChefHat,
+  ChevronRight,
+  ListPlus,
+  Minus,
+  Package,
+  Plus,
+  Trash2,
+  Upload,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { AppLayout, NAV } from "@/components/layout/app-layout";
+import { AppLayout } from "@/components/layout/app-layout";
 import { useConfirmacao } from "@/components/shared/confirmacao";
 import { ErrorState } from "@/components/shared/error-state";
 import { LogoEmpresa } from "@/components/shared/logo-empresa";
@@ -21,9 +35,17 @@ import { useConvitesPendentes, useEquipeMutations, useMembros } from "@/hooks/us
 import { useMesaMutations, useMesas } from "@/hooks/use-mesas";
 import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { dateShort } from "@/lib/format";
-import { MODULOS_POR_PAPEL, PAPEIS, PAPEL_LABEL, type Papel } from "@/lib/permissoes";
+import {
+  MODULO_LABEL,
+  MODULOS_DE_GESTAO,
+  MODULOS_POR_PAPEL,
+  PAPEIS,
+  PAPEL_LABEL,
+  type ModuloKey,
+  type Papel,
+} from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
-import { useEmpresaAtual } from "@/providers/empresa";
+import { useEmpresa, useEmpresaAtual } from "@/providers/empresa";
 import { METODO_LABEL, type EntradaEmpresa } from "@/services/configuracoes";
 import { linkDoConvite } from "@/services/equipe";
 
@@ -43,72 +65,172 @@ export const Route = createFileRoute("/configuracoes")({
     ],
   }),
   component: () => (
-    <AppLayout module="configuracoes">
+    <AppLayout module={MODULOS_DE_GESTAO}>
       <Configuracoes />
     </AppLayout>
   ),
 });
 
+type Atalho = {
+  titulo: string;
+  descricao: string;
+  icone: LucideIcon;
+  modulo: ModuloKey;
+  to: "/produtos" | "/estoque" | "/clientes" | "/relatorios";
+  search?: { aba: "adicionais" | "setores" };
+};
+
+const ATALHOS: Atalho[] = [
+  {
+    titulo: "Produtos e categorias",
+    descricao: "Cardápio, preços, fotos e categorias.",
+    icone: Package,
+    modulo: "produtos",
+    to: "/produtos",
+  },
+  {
+    titulo: "Adicionais",
+    descricao: "Grupos de opções oferecidas nos produtos.",
+    icone: ListPlus,
+    modulo: "produtos",
+    to: "/produtos",
+    search: { aba: "adicionais" },
+  },
+  {
+    titulo: "Setores da cozinha",
+    descricao: "Para qual tela da cozinha cada item vai.",
+    icone: ChefHat,
+    modulo: "produtos",
+    to: "/produtos",
+    search: { aba: "setores" },
+  },
+  {
+    titulo: "Estoque",
+    descricao: "Insumos, saldos e movimentações.",
+    icone: Boxes,
+    modulo: "estoque",
+    to: "/estoque",
+  },
+  {
+    titulo: "Clientes",
+    descricao: "Cadastro e histórico de pedidos.",
+    icone: Users,
+    modulo: "clientes",
+    to: "/clientes",
+  },
+  {
+    titulo: "Relatórios",
+    descricao: "Vendas, caixa, estoque e auditoria.",
+    icone: BarChart3,
+    modulo: "relatorios",
+    to: "/relatorios",
+  },
+];
+
 function Configuracoes() {
   const { papel } = useEmpresaAtual();
+  const { podeVer } = useEmpresa();
   // Nota: controla apenas a interface; a RLS e as RPCs bloqueiam a escrita de quem não é gestor.
   const gestor = papel === "owner" || papel === "admin";
+  const atalhos = ATALHOS.filter((a) => podeVer(a.modulo));
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Configurações" description="Dados e regras do restaurante." />
+    <div className="space-y-8">
+      <PageHeader title="Configurações" description="Cadastros, equipe e regras do restaurante." />
 
-      <Tabs defaultValue={gestor ? "empresa" : "permissoes"}>
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <TabsList className={ABAS_LISTA}>
-            {gestor && (
-              <>
-                <TabsTrigger value="empresa" className={ABAS_GATILHO}>
-                  Empresa
-                </TabsTrigger>
-                <TabsTrigger value="operacao" className={ABAS_GATILHO}>
-                  Operação
-                </TabsTrigger>
-                <TabsTrigger value="mesas" className={ABAS_GATILHO}>
-                  Mesas
-                </TabsTrigger>
-                <TabsTrigger value="equipe" className={ABAS_GATILHO}>
-                  Equipe
-                </TabsTrigger>
-              </>
-            )}
-            <TabsTrigger value="permissoes" className={ABAS_GATILHO}>
-              Permissões
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      {atalhos.length > 0 && (
+        <section aria-labelledby="titulo-gestao" className="space-y-3">
+          <h2 id="titulo-gestao" className="text-base font-semibold text-foreground">
+            Gestão
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {atalhos.map((a) => (
+              <li key={a.titulo}>
+                <Link
+                  to={a.to}
+                  search={a.search ?? {}}
+                  className="group flex h-full items-center gap-4 rounded-xl border border-border bg-card px-4 py-4 shadow-xs transition-colors hover:border-primary/30 hover:bg-primary-soft/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+                    <a.icone className="size-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium text-foreground">{a.titulo}</span>
+                    <span className="block text-sm text-muted-foreground">{a.descricao}</span>
+                  </span>
+                  <ChevronRight
+                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-        {gestor && (
-          <>
-            <TabsContent value="empresa" className="mt-4">
-              <SecaoEmpresa />
-            </TabsContent>
-            <TabsContent value="operacao" className="mt-4">
-              <SecaoOperacao />
-            </TabsContent>
-            <TabsContent value="mesas" className="mt-4">
-              <SecaoMesas />
-            </TabsContent>
-            <TabsContent value="equipe" className="mt-4">
-              <SecaoEquipe />
-            </TabsContent>
-          </>
-        )}
-        <TabsContent value="permissoes" className="mt-4 space-y-4">
-          {!gestor && (
-            <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
-              Somente o proprietário e os administradores podem alterar as configurações.
-            </p>
-          )}
-          <SecaoPermissoes />
-        </TabsContent>
-      </Tabs>
+      <section aria-labelledby="titulo-restaurante" className="space-y-3">
+        <h2 id="titulo-restaurante" className="text-base font-semibold text-foreground">
+          Restaurante
+        </h2>
+        <Ajustes gestor={gestor} />
+      </section>
     </div>
+  );
+}
+
+function Ajustes({ gestor }: { gestor: boolean }) {
+  return (
+    <Tabs defaultValue={gestor ? "empresa" : "permissoes"}>
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <TabsList className={ABAS_LISTA}>
+          {gestor && (
+            <>
+              <TabsTrigger value="empresa" className={ABAS_GATILHO}>
+                Dados do restaurante
+              </TabsTrigger>
+              <TabsTrigger value="operacao" className={ABAS_GATILHO}>
+                Operação e pagamentos
+              </TabsTrigger>
+              <TabsTrigger value="mesas" className={ABAS_GATILHO}>
+                Mesas
+              </TabsTrigger>
+              <TabsTrigger value="equipe" className={ABAS_GATILHO}>
+                Usuários
+              </TabsTrigger>
+            </>
+          )}
+          <TabsTrigger value="permissoes" className={ABAS_GATILHO}>
+            Permissões
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      {gestor && (
+        <>
+          <TabsContent value="empresa" className="mt-4">
+            <SecaoEmpresa />
+          </TabsContent>
+          <TabsContent value="operacao" className="mt-4">
+            <SecaoOperacao />
+          </TabsContent>
+          <TabsContent value="mesas" className="mt-4">
+            <SecaoMesas />
+          </TabsContent>
+          <TabsContent value="equipe" className="mt-4">
+            <SecaoEquipe />
+          </TabsContent>
+        </>
+      )}
+      <TabsContent value="permissoes" className="mt-4 space-y-4">
+        {!gestor && (
+          <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
+            Somente o proprietário e os administradores podem alterar as configurações.
+          </p>
+        )}
+        <SecaoPermissoes />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -713,15 +835,15 @@ function SecaoPermissoes() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {NAV.map((item) => (
-              <tr key={item.key}>
-                <td className="px-5 py-2.5 font-medium">{item.label}</td>
+            {(Object.keys(MODULO_LABEL) as ModuloKey[]).map((modulo) => (
+              <tr key={modulo}>
+                <td className="px-5 py-2.5 font-medium">{MODULO_LABEL[modulo]}</td>
                 {PAPEIS.map((p) => (
                   <td
                     key={p}
                     className={cn("px-2 py-2.5 text-center", p === papel && "bg-primary-soft/40")}
                   >
-                    {MODULOS_POR_PAPEL[p].includes(item.key) ? (
+                    {MODULOS_POR_PAPEL[p].includes(modulo) ? (
                       <Check
                         className="mx-auto size-4 text-success"
                         aria-label="Com acesso"

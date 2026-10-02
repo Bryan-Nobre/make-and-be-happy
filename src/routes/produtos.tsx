@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ClipboardList,
   Copy,
@@ -70,7 +70,15 @@ import { iconeDaCategoria } from "@/lib/icone-categoria";
 import { cn } from "@/lib/utils";
 import type { Categoria, GrupoAdicional, Produto, Setor } from "@/services/catalogo";
 
+type Aba = "produtos" | "adicionais" | "setores";
+const ABAS: readonly Aba[] = ["produtos", "adicionais", "setores"];
+const ehAba = (valor: unknown): valor is Aba => ABAS.includes(valor as Aba);
+
 export const Route = createFileRoute("/produtos")({
+  validateSearch: (search: Record<string, unknown>): { aba?: Exclude<Aba, "produtos"> } => {
+    const aba = search["aba"];
+    return ehAba(aba) && aba !== "produtos" ? { aba } : {};
+  },
   head: () => ({
     meta: [
       { title: "Produtos — ARVON FOOD" },
@@ -98,6 +106,8 @@ type Formulario = {
 };
 
 function Produtos() {
+  const { aba } = Route.useSearch();
+  const navigate = useNavigate({ from: "/produtos" });
   const produtos = useProdutos();
   const categorias = useCategorias();
   const setores = useSetores();
@@ -127,7 +137,14 @@ function Produtos() {
       ) : carregando ? (
         <LoadingState label="Carregando cardápio…" />
       ) : (
-        <Tabs defaultValue="produtos" className="gap-5">
+        <Tabs
+          value={aba ?? "produtos"}
+          onValueChange={(valor) => {
+            if (!ehAba(valor)) return;
+            void navigate({ search: valor === "produtos" ? {} : { aba: valor }, replace: true });
+          }}
+          className="gap-5"
+        >
           <div className="-mx-1 overflow-x-auto px-1 pb-1">
             <TabsList className={ABAS_LISTA}>
               <TabsTrigger value="produtos" className={ABAS_GATILHO}>

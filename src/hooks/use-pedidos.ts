@@ -5,6 +5,7 @@ import { chaves } from "@/lib/chaves";
 import { supabase } from "@/lib/supabase";
 import { useEmpresaAtual } from "@/providers/empresa";
 import * as servico from "@/services/pedidos";
+import { dataNoFuso, limitesDoPeriodo } from "@/services/relatorios";
 
 import { useMutacao } from "./use-mutacao";
 
@@ -92,6 +93,28 @@ export function useMesasEstado() {
     queryKey: chaves.mesasEstado(empresa.id),
     queryFn: () => servico.listarMesasEstado(empresa.id),
     refetchInterval: INTERVALO_RESERVA_MS,
+  });
+}
+
+export function usePedidosDoDia() {
+  const { empresa } = useEmpresaAtual();
+  const hoje = dataNoFuso();
+
+  return useQuery({
+    queryKey: [...chaves.salao(empresa.id), "pedidos-do-dia", hoje],
+    queryFn: () =>
+      servico.listarPedidosDesde(empresa.id, limitesDoPeriodo({ inicio: hoje, fim: hoje }).de),
+    refetchInterval: INTERVALO_RESERVA_MS,
+  });
+}
+
+export function usePedido(pedidoId: string | null) {
+  const { empresa } = useEmpresaAtual();
+
+  return useQuery({
+    queryKey: [...chaves.salao(empresa.id), "pedido", pedidoId ?? ""],
+    queryFn: () => servico.buscarPedido(empresa.id, pedidoId ?? ""),
+    enabled: !!pedidoId,
   });
 }
 

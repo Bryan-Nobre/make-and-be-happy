@@ -101,6 +101,132 @@ const MARGEM_ITEM_POSTERIOR_MS = 5000;
 // Salão
 // ---------------------------------------------------------------------------
 
+export type PedidoDoDia = {
+  id: string;
+  numero: number;
+  origem: OrigemPedido;
+  status: StatusPedido;
+  statusFinanceiro: StatusFinanceiro;
+  total: number;
+  criadoEm: string;
+  mesaId: string | null;
+  nomeMesa: string | null;
+  comandaNumero: number | null;
+  nomeCliente: string | null;
+  quantidadeItens: number;
+};
+
+/** Pedidos enviados a partir de `desde`, mais recentes primeiro. */
+export async function listarPedidosDesde(
+  empresaId: string,
+  desde: string,
+  limite = 100,
+): Promise<PedidoDoDia[]> {
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select(
+      "id, numero, origem, status_operacional, status_financeiro, subtotal, total, criado_em, comanda:comandas!pedidos_comanda_fk(numero, mesa_id, mesa:mesas!comandas_mesa_fk(nome)), cliente:clientes!pedidos_cliente_fk(nome), itens_pedido(quantidade)",
+    )
+    .eq("empresa_id", empresaId)
+    .neq("status_operacional", "DRAFT")
+    .gte("criado_em", desde)
+    .order("criado_em", { ascending: false })
+    .limit(limite);
+
+  if (error) throw error;
+
+  return data.map((p) => ({
+    id: p.id,
+    numero: p.numero,
+    origem: p.origem,
+    status: p.status_operacional,
+    statusFinanceiro: p.status_financeiro,
+    total: Number(p.total ?? p.subtotal),
+    criadoEm: p.criado_em,
+    mesaId: p.comanda?.mesa_id ?? null,
+    nomeMesa: p.comanda?.mesa?.nome ?? null,
+    comandaNumero: p.comanda?.numero ?? null,
+    nomeCliente: p.cliente?.nome ?? null,
+    quantidadeItens: p.itens_pedido.reduce((soma, i) => soma + Number(i.quantidade), 0),
+  }));
+}
+
+export type PedidoDetalhado = {
+  id: string;
+  numero: number;
+  origem: OrigemPedido;
+  status: StatusPedido;
+  statusFinanceiro: StatusFinanceiro;
+  subtotal: number;
+  desconto: number;
+  acrescimo: number;
+  total: number;
+  valorPago: number;
+  observacoes: string | null;
+  criadoEm: string;
+  comandaId: string | null;
+  comandaNumero: number | null;
+  statusComanda: StatusComanda | null;
+  pessoas: number | null;
+  mesaId: string | null;
+  nomeMesa: string | null;
+  nomeCliente: string | null;
+  itens: ItemDoPedido[];
+};
+
+export async function buscarPedido(
+  empresaId: string,
+  pedidoId: string,
+): Promise<PedidoDetalhado | null> {
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select(
+      `id, numero, origem, status_operacional, status_financeiro, subtotal, desconto, acrescimo,
+       total, valor_pago, observacoes, criado_em, comanda_id,
+       comanda:comandas!pedidos_comanda_fk(numero, status, pessoas, mesa_id, mesa:mesas!comandas_mesa_fk(nome)),
+       cliente:clientes!pedidos_cliente_fk(nome),
+       itens_pedido(id, nome_produto, quantidade, total, observacoes, criado_em,
+         item_pedido_adicional(nome_opcao))`,
+    )
+    .eq("empresa_id", empresaId)
+    .eq("id", pedidoId)
+    .order("criado_em", { referencedTable: "itens_pedido" })
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    numero: data.numero,
+    origem: data.origem,
+    status: data.status_operacional,
+    statusFinanceiro: data.status_financeiro,
+    subtotal: Number(data.subtotal),
+    desconto: Number(data.desconto),
+    acrescimo: Number(data.acrescimo),
+    total: Number(data.total ?? data.subtotal),
+    valorPago: Number(data.valor_pago),
+    observacoes: data.observacoes,
+    criadoEm: data.criado_em,
+    comandaId: data.comanda_id,
+    comandaNumero: data.comanda?.numero ?? null,
+    statusComanda: data.comanda?.status ?? null,
+    pessoas: data.comanda?.pessoas ?? null,
+    mesaId: data.comanda?.mesa_id ?? null,
+    nomeMesa: data.comanda?.mesa?.nome ?? null,
+    nomeCliente: data.cliente?.nome ?? null,
+    itens: data.itens_pedido.map((i) => ({
+      id: i.id,
+      nomeProduto: i.nome_produto,
+      quantidade: Number(i.quantidade),
+      total: Number(i.total),
+      observacoes: i.observacoes,
+      adicionais: i.item_pedido_adicional.map((a) => a.nome_opcao),
+    })),
+  };
+}
+
 export async function listarMesasEstado(empresaId: string): Promise<MesaEstado[]> {
   const { data, error } = await supabase
     .from("mesas_estado")

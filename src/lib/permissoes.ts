@@ -14,6 +14,28 @@ export type ModuloKey =
   | "relatorios"
   | "configuracoes";
 
+export const MODULO_LABEL: Record<ModuloKey, string> = {
+  dashboard: "Dashboard",
+  pdv: "Pedidos e PDV",
+  mesas: "Mesas",
+  cozinha: "Cozinha",
+  caixa: "Caixa",
+  produtos: "Produtos",
+  estoque: "Estoque",
+  clientes: "Clientes",
+  relatorios: "Relatórios",
+  configuracoes: "Configurações",
+};
+
+/** Módulos acessados a partir de Configurações. */
+export const MODULOS_DE_GESTAO: readonly ModuloKey[] = [
+  "configuracoes",
+  "produtos",
+  "estoque",
+  "clientes",
+  "relatorios",
+];
+
 export const PAPEIS: readonly Papel[] = ["owner", "admin", "cashier", "waiter", "kitchen"];
 
 export const PAPEL_LABEL: Record<Papel, string> = {

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Armchair, Check, ChefHat, LayoutGrid, Search, Users } from "lucide-react";
 import { useState } from "react";
 
@@ -49,6 +49,10 @@ import { useEmpresaAtual } from "@/providers/empresa";
 import type { MesaEstado, PedidoDaComanda, StatusMesa } from "@/services/pedidos";
 
 export const Route = createFileRoute("/mesas")({
+  validateSearch: (search: Record<string, unknown>): { mesa?: string } => {
+    const mesa = search["mesa"];
+    return typeof mesa === "string" && mesa !== "" ? { mesa } : {};
+  },
   head: () => ({
     meta: [
       { title: "Mesas — ARVON FOOD" },
@@ -120,7 +124,13 @@ function distribuirCadeiras(lugares: number) {
 function Mesas() {
   useRealtimeSalao();
   const mesas = useMesasEstado();
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const { mesa: mesaDaUrl } = Route.useSearch();
+  const navigate = useNavigate({ from: "/mesas" });
+  const [selecionadaId, setSelecionadaIdLocal] = useState<string | null>(mesaDaUrl ?? null);
+  const setSelecionadaId = (id: string | null) => {
+    setSelecionadaIdLocal(id);
+    if (mesaDaUrl) void navigate({ search: {}, replace: true });
+  };
   const [filtro, setFiltro] = useState<Filtro>("TODAS");
   const [busca, setBusca] = useState("");
 
@@ -611,7 +621,7 @@ function DetalheComanda({
             {c.status === "OPEN" && (
               <>
                 <Button asChild variant="outline" className="h-11">
-                  <Link to="/pdv" search={{ comanda: c.id }}>
+                  <Link to="/pedidos" search={{ comanda: c.id }}>
                     Lançar pedido no PDV
                   </Link>
                 </Button>

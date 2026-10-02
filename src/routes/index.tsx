@@ -71,7 +71,7 @@ function Dashboard() {
         description={hoje()}
         actions={
           <Button asChild>
-            <Link to="/pdv">
+            <Link to="/pedidos">
               <Plus className="size-4" aria-hidden="true" /> Novo pedido
             </Link>
           </Button>

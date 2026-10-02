@@ -198,6 +198,14 @@
   }
 }
 
+/* Trilhos horizontais roláveis por toque/roda, sem barra visível. */
+@utility trilho {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

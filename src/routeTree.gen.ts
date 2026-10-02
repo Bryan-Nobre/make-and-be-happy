@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AceitarConviteRouteImport } from './routes/aceitar-convite'
+import { Route as AjudaRouteImport } from './routes/ajuda'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CaixaRouteImport } from './routes/caixa'
 import { Route as ClientesRouteImport } from './routes/clientes'
@@ -21,6 +22,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MesasRouteImport } from './routes/mesas'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PdvRouteImport } from './routes/pdv'
+import { Route as PedidosRouteImport } from './routes/pedidos'
 import { Route as ProdutosRouteImport } from './routes/produtos'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 
@@ -32,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const AceitarConviteRoute = AceitarConviteRouteImport.update({
   id: '/aceitar-convite',
   path: '/aceitar-convite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AjudaRoute = AjudaRouteImport.update({
+  id: '/ajuda',
+  path: '/ajuda',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroRoute = CadastroRouteImport.update({
@@ -84,6 +91,11 @@ const PdvRoute = PdvRouteImport.update({
   path: '/pdv',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PedidosRoute = PedidosRouteImport.update({
+  id: '/pedidos',
+  path: '/pedidos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProdutosRoute = ProdutosRouteImport.update({
   id: '/produtos',
   path: '/produtos',
@@ -98,6 +110,7 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
   '/clientes': typeof ClientesRoute
@@ -108,12 +121,14 @@ export interface FileRoutesByFullPath {
   '/mesas': typeof MesasRoute
   '/onboarding': typeof OnboardingRoute
   '/pdv': typeof PdvRoute
+  '/pedidos': typeof PedidosRoute
   '/produtos': typeof ProdutosRoute
   '/relatorios': typeof RelatoriosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
   '/clientes': typeof ClientesRoute
@@ -124,6 +139,7 @@ export interface FileRoutesByTo {
   '/mesas': typeof MesasRoute
   '/onboarding': typeof OnboardingRoute
   '/pdv': typeof PdvRoute
+  '/pedidos': typeof PedidosRoute
   '/produtos': typeof ProdutosRoute
   '/relatorios': typeof RelatoriosRoute
 }
@@ -131,6 +147,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
   '/clientes': typeof ClientesRoute
@@ -141,6 +158,7 @@ export interface FileRoutesById {
   '/mesas': typeof MesasRoute
   '/onboarding': typeof OnboardingRoute
   '/pdv': typeof PdvRoute
+  '/pedidos': typeof PedidosRoute
   '/produtos': typeof ProdutosRoute
   '/relatorios': typeof RelatoriosRoute
 }
@@ -149,6 +167,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/aceitar-convite'
+    | '/ajuda'
     | '/cadastro'
     | '/caixa'
     | '/clientes'
@@ -159,12 +178,14 @@ export interface FileRouteTypes {
     | '/mesas'
     | '/onboarding'
     | '/pdv'
+    | '/pedidos'
     | '/produtos'
     | '/relatorios'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/aceitar-convite'
+    | '/ajuda'
     | '/cadastro'
     | '/caixa'
     | '/clientes'
@@ -175,12 +196,14 @@ export interface FileRouteTypes {
     | '/mesas'
     | '/onboarding'
     | '/pdv'
+    | '/pedidos'
     | '/produtos'
     | '/relatorios'
   id:
     | '__root__'
     | '/'
     | '/aceitar-convite'
+    | '/ajuda'
     | '/cadastro'
     | '/caixa'
     | '/clientes'
@@ -191,6 +214,7 @@ export interface FileRouteTypes {
     | '/mesas'
     | '/onboarding'
     | '/pdv'
+    | '/pedidos'
     | '/produtos'
     | '/relatorios'
   fileRoutesById: FileRoutesById
@@ -198,6 +222,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AceitarConviteRoute: typeof AceitarConviteRoute
+  AjudaRoute: typeof AjudaRoute
   CadastroRoute: typeof CadastroRoute
   CaixaRoute: typeof CaixaRoute
   ClientesRoute: typeof ClientesRoute
@@ -208,6 +233,7 @@ export interface RootRouteChildren {
   MesasRoute: typeof MesasRoute
   OnboardingRoute: typeof OnboardingRoute
   PdvRoute: typeof PdvRoute
+  PedidosRoute: typeof PedidosRoute
   ProdutosRoute: typeof ProdutosRoute
   RelatoriosRoute: typeof RelatoriosRoute
 }
@@ -226,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/aceitar-convite'
       fullPath: '/aceitar-convite'
       preLoaderRoute: typeof AceitarConviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ajuda': {
+      id: '/ajuda'
+      path: '/ajuda'
+      fullPath: '/ajuda'
+      preLoaderRoute: typeof AjudaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro': {
@@ -298,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PdvRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pedidos': {
+      id: '/pedidos'
+      path: '/pedidos'
+      fullPath: '/pedidos'
+      preLoaderRoute: typeof PedidosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/produtos': {
       id: '/produtos'
       path: '/produtos'
@@ -318,6 +358,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AceitarConviteRoute: AceitarConviteRoute,
+  AjudaRoute: AjudaRoute,
   CadastroRoute: CadastroRoute,
   CaixaRoute: CaixaRoute,
   ClientesRoute: ClientesRoute,
@@ -328,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   MesasRoute: MesasRoute,
   OnboardingRoute: OnboardingRoute,
   PdvRoute: PdvRoute,
+  PedidosRoute: PedidosRoute,
   ProdutosRoute: ProdutosRoute,
   RelatoriosRoute: RelatoriosRoute,
 }

@@ -1,18 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Boxes,
   ChefHat,
-  ChevronsUpDown,
+  ChevronDown,
   ClipboardList,
   LayoutDashboard,
+  LifeBuoy,
   Lock,
   LogOut,
   Menu,
-  Package,
   Settings,
-  ShoppingCart,
-  Users,
   UtensilsCrossed,
   Wallet,
 } from "lucide-react";
@@ -37,43 +34,84 @@ import {
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useSessaoAberta } from "@/hooks/use-caixa";
 import { mensagemDeErro } from "@/lib/erros";
-import { PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
+import { MODULOS_DE_GESTAO, PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 import { useEmpresa } from "@/providers/empresa";
 import { sair } from "@/services/auth";
 
 type NavItem = {
-  key: ModuloKey;
   label: string;
   to: string;
   icon: typeof LayoutDashboard;
-  group: "Operação" | "Gestão";
+  /** Liberado se o perfil puder ver ao menos um destes módulos; vazio = todos os membros. */
+  modulos: readonly ModuloKey[];
+  /** Rotas, além de `to`, em que o item aparece como ativo. */
+  ativoEm?: readonly string[];
 };
 
-export const NAV: NavItem[] = [
-  { key: "dashboard", label: "Dashboard", to: "/", icon: LayoutDashboard, group: "Operação" },
-  { key: "pdv", label: "PDV", to: "/pdv", icon: ShoppingCart, group: "Operação" },
-  { key: "mesas", label: "Mesas", to: "/mesas", icon: UtensilsCrossed, group: "Operação" },
-  { key: "cozinha", label: "Cozinha", to: "/cozinha", icon: ChefHat, group: "Operação" },
-  { key: "caixa", label: "Caixa", to: "/caixa", icon: Wallet, group: "Operação" },
-  { key: "produtos", label: "Produtos", to: "/produtos", icon: Package, group: "Gestão" },
-  { key: "estoque", label: "Estoque", to: "/estoque", icon: Boxes, group: "Gestão" },
-  { key: "clientes", label: "Clientes", to: "/clientes", icon: Users, group: "Gestão" },
+const OPERACAO: NavItem[] = [
+  { label: "Dashboard", to: "/", icon: LayoutDashboard, modulos: ["dashboard"] },
+  { label: "Pedidos", to: "/pedidos", icon: ClipboardList, modulos: ["pdv"] },
+  { label: "Mesas", to: "/mesas", icon: UtensilsCrossed, modulos: ["mesas"] },
+  { label: "Cozinha", to: "/cozinha", icon: ChefHat, modulos: ["cozinha"] },
+  { label: "Caixa", to: "/caixa", icon: Wallet, modulos: ["caixa"] },
+];
+
+const SISTEMA: NavItem[] = [
   {
-    key: "relatorios",
-    label: "Relatórios",
-    to: "/relatorios",
-    icon: ClipboardList,
-    group: "Gestão",
-  },
-  {
-    key: "configuracoes",
     label: "Configurações",
     to: "/configuracoes",
     icon: Settings,
-    group: "Gestão",
+    modulos: MODULOS_DE_GESTAO,
+    ativoEm: ["/produtos", "/estoque", "/clientes", "/relatorios"],
   },
+  { label: "Central de ajuda", to: "/ajuda", icon: LifeBuoy, modulos: [] },
 ];
+
+type Pagina = { titulo: string; pai?: { titulo: string; to: string } };
+
+const PAI_CONFIGURACOES = { titulo: "Configurações", to: "/configuracoes" };
+
+const PAGINAS: Record<string, Pagina> = {
+  "/": { titulo: "Dashboard" },
+  "/pedidos": { titulo: "Pedidos" },
+  "/mesas": { titulo: "Mesas" },
+  "/cozinha": { titulo: "Cozinha" },
+  "/caixa": { titulo: "Caixa" },
+  "/configuracoes": { titulo: "Configurações" },
+  "/produtos": { titulo: "Produtos", pai: PAI_CONFIGURACOES },
+  "/estoque": { titulo: "Estoque", pai: PAI_CONFIGURACOES },
+  "/clientes": { titulo: "Clientes", pai: PAI_CONFIGURACOES },
+  "/relatorios": { titulo: "Relatórios", pai: PAI_CONFIGURACOES },
+  "/ajuda": { titulo: "Central de ajuda" },
+};
+
+const estaAtivo = (item: NavItem, pathname: string) =>
+  [item.to, ...(item.ativoEm ?? [])].some((rota) =>
+    rota === "/" ? pathname === "/" : pathname === rota || pathname.startsWith(`${rota}/`),
+  );
+
+function useSair() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [saindo, setSaindo] = useState(false);
+
+  const sairDaConta = async () => {
+    setSaindo(true);
+    try {
+      await sair();
+      // Limpa o cache para não deixar dados de uma empresa visíveis na próxima sessão.
+      queryClient.clear();
+      void navigate({ to: "/login", replace: true });
+    } catch (erro) {
+      toast.error(mensagemDeErro(erro));
+    } finally {
+      setSaindo(false);
+    }
+  };
+
+  return { saindo, sairDaConta };
+}
 
 function Brand() {
   return (
@@ -101,8 +139,9 @@ function NavLinkItem({
   onNavigate?: () => void;
 }) {
   const { podeVer } = useEmpresa();
-  const allowed = podeVer(item.key);
-  const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+  // Nota: controla apenas a interface; a RLS bloqueia o acesso real aos dados.
+  const allowed = item.modulos.length === 0 || item.modulos.some(podeVer);
+  const active = estaAtivo(item, pathname);
 
   return (
     <li>
@@ -110,21 +149,9 @@ function NavLinkItem({
         to={item.to}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className={cn(
-          "group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-10",
-          active
-            ? "bg-primary-soft text-primary-strong"
-            : "text-foreground/80 hover:bg-muted hover:text-foreground",
-          !allowed && "opacity-55",
-        )}
+        className={cn(ITEM, ITEM_ESTADO(active), !allowed && "opacity-55")}
       >
-        <item.icon
-          className={cn(
-            "size-4.5 shrink-0",
-            active ? "text-primary-strong" : "text-muted-foreground group-hover:text-foreground",
-          )}
-          aria-hidden="true"
-        />
+        <item.icon className={ICONE_ESTADO(active)} aria-hidden="true" />
         <span className="flex-1 truncate">{item.label}</span>
         {!allowed && (
           <Lock
@@ -137,65 +164,64 @@ function NavLinkItem({
   );
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const groups: NavItem["group"][] = ["Operação", "Gestão"];
-  const destacados = NAV.filter((item) => item.key === "configuracoes");
+const ITEM =
+  "group flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-10";
+const ITEM_ESTADO = (active: boolean) =>
+  active
+    ? "bg-primary-soft text-primary-strong"
+    : "text-foreground/75 hover:bg-muted/70 hover:text-foreground";
+const ICONE_ESTADO = (active: boolean) =>
+  cn(
+    "size-4 shrink-0",
+    active ? "text-primary-strong" : "text-muted-foreground group-hover:text-foreground",
+  );
 
+function Grupo({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <nav aria-label="Navegação principal" className="flex flex-col gap-6">
-      {groups.map((group) => {
-        const items = NAV.filter((item) => item.group === group && !destacados.includes(item));
-        return (
-          <div key={group}>
-            <p className="px-3 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-              {group}
-            </p>
-            <ul className="flex flex-col gap-1">
-              {items.map((item) => (
-                <NavLinkItem
-                  key={item.key}
-                  item={item}
-                  pathname={pathname}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-      {destacados.length > 0 && (
-        <ul className="flex flex-col gap-1 border-t pt-4">
-          {destacados.map((item) => (
-            <NavLinkItem key={item.key} item={item} pathname={pathname} onNavigate={onNavigate} />
-          ))}
-        </ul>
-      )}
-    </nav>
+    <div>
+      <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground/80 uppercase">
+        {titulo}
+      </p>
+      <ul className="flex flex-col gap-1.5">{children}</ul>
+    </div>
   );
 }
 
-function SidebarContent({
-  onNavigate,
-  mostrarUsuario = true,
-}: {
-  onNavigate?: () => void;
-  mostrarUsuario?: boolean;
-}) {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { saindo, sairDaConta } = useSair();
+
   return (
-    <div className="flex h-full flex-col bg-sidebar">
-      <div className="flex h-16 shrink-0 items-center px-4">
+    <nav aria-label="Navegação principal" className="flex h-full flex-col bg-sidebar">
+      <div className="flex h-16 shrink-0 items-center px-5">
         <Brand />
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <NavList onNavigate={onNavigate} />
+      <div className="flex-1 overflow-y-auto px-3 pt-6 pb-4">
+        <Grupo titulo="Operação">
+          {OPERACAO.map((item) => (
+            <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+        </Grupo>
       </div>
-      {mostrarUsuario && (
-        <div className="shrink-0 border-t p-3">
-          <UserMenu variant="sidebar" />
-        </div>
-      )}
-    </div>
+      <div className="shrink-0 px-3 pt-4 pb-5">
+        <Grupo titulo="Sistema">
+          {SISTEMA.map((item) => (
+            <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+          <li>
+            <button
+              type="button"
+              disabled={saindo}
+              onClick={() => void sairDaConta()}
+              className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
+            >
+              <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
+              <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
+            </button>
+          </li>
+        </Grupo>
+      </div>
+    </nav>
   );
 }
 
@@ -209,66 +235,30 @@ function iniciais(nome: string) {
     .toUpperCase();
 }
 
-function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar" }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+function UserMenu() {
   const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa } = useEmpresa();
-  const [saindo, setSaindo] = useState(false);
-
-  const sairDaConta = async () => {
-    setSaindo(true);
-    try {
-      await sair();
-      // Limpa o cache para não deixar dados de uma empresa visíveis na próxima sessão.
-      queryClient.clear();
-      void navigate({ to: "/login", replace: true });
-    } catch (erro) {
-      toast.error(mensagemDeErro(erro));
-    } finally {
-      setSaindo(false);
-    }
-  };
+  const { saindo, sairDaConta } = useSair();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {variant === "sidebar" ? (
-          <button
-            type="button"
-            className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-muted/60 px-3 py-2.5 text-left transition-colors hover:bg-muted"
-          >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
-              {iniciais(nomeUsuario)}
+        <Button variant="ghost" className="h-11 gap-2 px-2">
+          <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
+            {iniciais(nomeUsuario)}
+          </span>
+          <span className="hidden text-left leading-tight sm:block">
+            <span className="block text-sm font-medium">{nomeUsuario}</span>
+            <span className="block text-xs text-muted-foreground">
+              {papel ? PAPEL_LABEL[papel] : ""}
             </span>
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-medium text-foreground">
-                {nomeUsuario}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {papel ? PAPEL_LABEL[papel] : ""}
-              </span>
-            </span>
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          </button>
-        ) : (
-          <Button variant="ghost" className="h-11 gap-2 px-2">
-            <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-              {iniciais(nomeUsuario)}
-            </span>
-            <span className="hidden text-left leading-tight sm:block">
-              <span className="block text-sm font-medium">{nomeUsuario}</span>
-              <span className="block text-xs text-muted-foreground">
-                {papel ? PAPEL_LABEL[papel] : ""}
-              </span>
-            </span>
-          </Button>
-        )}
+          </span>
+          <ChevronDown
+            className="hidden size-4 text-muted-foreground sm:block"
+            aria-hidden="true"
+          />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align={variant === "sidebar" ? "start" : "end"}
-        side={variant === "sidebar" ? "top" : "bottom"}
-        className="w-64"
-      >
+      <DropdownMenuContent align="end" className="w-64">
         {vinculos.length > 1 && (
           <>
             <DropdownMenuLabel>Restaurante</DropdownMenuLabel>
@@ -323,11 +313,13 @@ function SeloCaixa() {
   );
 }
 
-function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }) {
+function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children: ReactNode }) {
   const { empresa, podeVer } = useEmpresa();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
-  const allowed = podeVer(modulo);
-  const label = NAV.find((n) => n.key === modulo)?.label ?? modulo;
+  const allowed = modulos.length === 0 || modulos.some(podeVer);
+  const pagina = PAGINAS[pathname] ?? { titulo: "ARVON FOOD" };
+  const label = pagina.titulo;
 
   return (
     <div className="min-h-screen bg-background">
@@ -346,7 +338,7 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
             </SheetTrigger>
             <SheetContent side="left" className="w-[280px] gap-0 bg-sidebar p-0">
               <SheetTitle className="sr-only">Navegação</SheetTitle>
-              <SidebarContent onNavigate={() => setOpen(false)} mostrarUsuario={false} />
+              <SidebarContent onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
 
@@ -362,14 +354,25 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
                 </span>
               </>
             )}
+            {pagina.pai && (
+              <>
+                <Link
+                  to={pagina.pai.to}
+                  className="hidden truncate text-muted-foreground transition-colors hover:text-foreground md:inline"
+                >
+                  {pagina.pai.titulo}
+                </Link>
+                <span aria-hidden="true" className="hidden text-border md:inline">
+                  /
+                </span>
+              </>
+            )}
             <span className="truncate font-medium text-foreground">{label}</span>
           </p>
 
           <div className="flex shrink-0 items-center gap-2">
             {empresa && podeVer("caixa") && <SeloCaixa />}
-            <div className="lg:hidden">
-              <UserMenu />
-            </div>
+            <UserMenu />
           </div>
         </header>
 
@@ -381,10 +384,21 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
   );
 }
 
-export function AppLayout({ module, children }: { module: ModuloKey; children: ReactNode }) {
+/**
+ * `module` define quais perfis veem a página (basta um dos módulos);
+ * sem `module`, a página é aberta a todos os membros.
+ */
+export function AppLayout({
+  module,
+  children,
+}: {
+  module?: ModuloKey | readonly ModuloKey[];
+  children: ReactNode;
+}) {
+  const modulos = module === undefined ? [] : typeof module === "string" ? [module] : module;
   return (
     <RotaProtegida>
-      <Chrome modulo={module}>{children}</Chrome>
+      <Chrome modulos={modulos}>{children}</Chrome>
     </RotaProtegida>
   );
 }
