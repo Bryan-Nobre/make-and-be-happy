@@ -1,3 +1,4 @@
+import { exigirAlteracao } from "@/lib/erros";
 import { converterParaWebp } from "@/lib/imagem-webp";
 import { supabase } from "@/lib/supabase";
 import type { Enums } from "@/types/db";
@@ -32,20 +33,21 @@ export type EntradaEmpresa = {
 };
 
 export async function atualizarEmpresa(empresaId: string, entrada: EntradaEmpresa): Promise<void> {
-  const { error } = await supabase
-    .from("empresas")
-    .update({
-      nome: entrada.nome.trim(),
-      cnpj: entrada.cnpj.trim() || null,
-      telefone: entrada.telefone.trim() || null,
-      endereco: entrada.endereco.trim() || null,
-      horario_funcionamento: entrada.horarioFuncionamento.trim() || null,
-      taxa_servico: entrada.taxaServico,
-      envio_automatico_cozinha: entrada.envioAutomaticoCozinha,
-    })
-    .eq("id", empresaId);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase
+      .from("empresas")
+      .update({
+        nome: entrada.nome.trim(),
+        cnpj: entrada.cnpj.trim() || null,
+        telefone: entrada.telefone.trim() || null,
+        endereco: entrada.endereco.trim() || null,
+        horario_funcionamento: entrada.horarioFuncionamento.trim() || null,
+        taxa_servico: entrada.taxaServico,
+        envio_automatico_cozinha: entrada.envioAutomaticoCozinha,
+      })
+      .eq("id", empresaId)
+      .select("id"),
+  );
 }
 
 /** Caminho do arquivo dentro do bucket, extraído da URL pública. */
@@ -77,18 +79,16 @@ export async function enviarLogo(
 
   const { data } = supabase.storage.from(BUCKET_LOGOS).getPublicUrl(caminho);
 
-  const { error } = await supabase
-    .from("empresas")
-    .update({ logo_url: data.publicUrl })
-    .eq("id", empresaId);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("empresas").update({ logo_url: data.publicUrl }).eq("id", empresaId).select("id"),
+  );
   await apagarArquivoLogo(urlAnterior);
 }
 
 export async function removerLogo(empresaId: string, urlAtual: string | null): Promise<void> {
-  const { error } = await supabase.from("empresas").update({ logo_url: null }).eq("id", empresaId);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("empresas").update({ logo_url: null }).eq("id", empresaId).select("id"),
+  );
   await apagarArquivoLogo(urlAtual);
 }
 
@@ -108,11 +108,12 @@ export async function definirFormaPagamentoAtiva(
   metodo: MetodoPagamento,
   ativa: boolean,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("formas_pagamento")
-    .update({ ativa })
-    .eq("empresa_id", empresaId)
-    .eq("metodo", metodo);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase
+      .from("formas_pagamento")
+      .update({ ativa })
+      .eq("empresa_id", empresaId)
+      .eq("metodo", metodo)
+      .select("metodo"),
+  );
 }

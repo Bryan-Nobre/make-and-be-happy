@@ -1,3 +1,4 @@
+import { exigirAlteracao } from "@/lib/erros";
 import { supabase } from "@/lib/supabase";
 import type { OrigemPedido, StatusFinanceiro, StatusPedido } from "@/services/pedidos";
 
@@ -59,8 +60,9 @@ export async function salvarCliente(empresaId: string, entrada: EntradaCliente):
   };
 
   if (entrada.id) {
-    const { error } = await supabase.from("clientes").update(valores).eq("id", entrada.id);
-    if (error) throw error;
+    await exigirAlteracao(
+      supabase.from("clientes").update(valores).eq("id", entrada.id).select("id"),
+    );
     return entrada.id;
   }
 
@@ -128,6 +130,5 @@ export async function buscarHistoricoCliente(
 
 /** Cliente não é excluído: preserva-se o vínculo com o histórico de pedidos. */
 export async function definirClienteAtivo(id: string, ativo: boolean): Promise<void> {
-  const { error } = await supabase.from("clientes").update({ ativo }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("clientes").update({ ativo }).eq("id", id).select("id"));
 }

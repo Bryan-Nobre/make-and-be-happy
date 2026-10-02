@@ -22,6 +22,7 @@ import {
   useSessoesNoPeriodo,
   useVendasDiarias,
 } from "@/hooks/use-relatorios";
+import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { brl, dateTime } from "@/lib/format";
 import { TIPO_MOVIMENTACAO_ESTOQUE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -54,9 +55,6 @@ const ATALHOS = [
 ] as const;
 
 const MAX_DIAS = 366;
-
-const GATILHO_ABA =
-  "h-8 px-4 data-[state=active]:bg-primary-soft data-[state=active]:text-primary-strong data-[state=active]:shadow-none";
 
 function Relatorios() {
   const hoje = dataNoFuso();
@@ -149,20 +147,20 @@ function Relatorios() {
 
       <Tabs defaultValue="vendas">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <TabsList className="h-10 border border-border bg-card">
-            <TabsTrigger value="vendas" className={GATILHO_ABA}>
+          <TabsList className={ABAS_LISTA}>
+            <TabsTrigger value="vendas" className={ABAS_GATILHO}>
               Vendas
             </TabsTrigger>
-            <TabsTrigger value="produtos" className={GATILHO_ABA}>
+            <TabsTrigger value="produtos" className={ABAS_GATILHO}>
               Produtos
             </TabsTrigger>
-            <TabsTrigger value="caixa" className={GATILHO_ABA}>
+            <TabsTrigger value="caixa" className={ABAS_GATILHO}>
               Caixa
             </TabsTrigger>
-            <TabsTrigger value="estoque" className={GATILHO_ABA}>
+            <TabsTrigger value="estoque" className={ABAS_GATILHO}>
               Estoque
             </TabsTrigger>
-            <TabsTrigger value="auditoria" className={GATILHO_ABA}>
+            <TabsTrigger value="auditoria" className={ABAS_GATILHO}>
               Auditoria
             </TabsTrigger>
           </TabsList>

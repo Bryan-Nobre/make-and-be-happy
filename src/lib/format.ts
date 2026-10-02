@@ -20,8 +20,7 @@ export const dateTime = (iso: string) =>
     hour12: false,
   });
 
-export const dateShort = (iso: string) =>
-  new Date(iso).toLocaleDateString("pt-BR");
+export const dateShort = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
 
 /** Elapsed minutes since an ISO timestamp, never negative. */
 export const minutesSince = (iso: string) =>
@@ -34,5 +33,4 @@ export const elapsed = (iso: string) => {
   return `${h}h ${m % 60}min`;
 };
 
-export const uid = (prefix: string) =>
-  `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;

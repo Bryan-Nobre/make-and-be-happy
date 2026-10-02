@@ -373,7 +373,7 @@ function Chrome({ modulo, children }: { modulo: ModuloKey; children: ReactNode }
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-6 lg:px-8">
+        <main className="mx-auto w-full px-4 py-6 md:px-6 lg:w-[90%] lg:px-0">
           {allowed ? children : <PermissionDenied label={label} />}
         </main>
       </div>

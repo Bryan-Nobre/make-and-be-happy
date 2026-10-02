@@ -1,3 +1,4 @@
+import { exigirAlteracao } from "@/lib/erros";
 import { converterParaWebp } from "@/lib/imagem-webp";
 import { supabase } from "@/lib/supabase";
 
@@ -71,26 +72,29 @@ export async function salvarCategoria(
 ): Promise<void> {
   const valores = { nome: entrada.nome.trim(), ordem: entrada.ordem };
 
-  const { error } = entrada.id
-    ? await supabase.from("categorias").update(valores).eq("id", entrada.id)
-    : await supabase.from("categorias").insert({ empresa_id: empresaId, ...valores });
+  if (entrada.id) {
+    await exigirAlteracao(
+      supabase.from("categorias").update(valores).eq("id", entrada.id).select("id"),
+    );
+    return;
+  }
 
+  const { error } = await supabase.from("categorias").insert({ empresa_id: empresaId, ...valores });
   if (error) throw error;
 }
 
 export async function renomearCategoria(id: string, nome: string): Promise<void> {
-  const { error } = await supabase.from("categorias").update({ nome: nome.trim() }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("categorias").update({ nome: nome.trim() }).eq("id", id).select("id"),
+  );
 }
 
 export async function definirCategoriaAtiva(id: string, ativa: boolean): Promise<void> {
-  const { error } = await supabase.from("categorias").update({ ativa }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("categorias").update({ ativa }).eq("id", id).select("id"));
 }
 
 export async function excluirCategoria(id: string): Promise<void> {
-  const { error } = await supabase.from("categorias").delete().eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("categorias").delete().eq("id", id).select("id"));
 }
 
 // ---------------------------------------------------------------------------
@@ -115,30 +119,34 @@ export async function salvarSetor(
 ): Promise<void> {
   const valores = { nome: entrada.nome.trim(), ordem: entrada.ordem };
 
-  const { error } = entrada.id
-    ? await supabase.from("setores_cozinha").update(valores).eq("id", entrada.id)
-    : await supabase.from("setores_cozinha").insert({ empresa_id: empresaId, ...valores });
+  if (entrada.id) {
+    await exigirAlteracao(
+      supabase.from("setores_cozinha").update(valores).eq("id", entrada.id).select("id"),
+    );
+    return;
+  }
 
+  const { error } = await supabase
+    .from("setores_cozinha")
+    .insert({ empresa_id: empresaId, ...valores });
   if (error) throw error;
 }
 
 /** Itens já lançados guardam `nome_setor`: renomear não altera o histórico. */
 export async function renomearSetor(id: string, nome: string): Promise<void> {
-  const { error } = await supabase
-    .from("setores_cozinha")
-    .update({ nome: nome.trim() })
-    .eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("setores_cozinha").update({ nome: nome.trim() }).eq("id", id).select("id"),
+  );
 }
 
 export async function definirSetorAtivo(id: string, ativo: boolean): Promise<void> {
-  const { error } = await supabase.from("setores_cozinha").update({ ativo }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("setores_cozinha").update({ ativo }).eq("id", id).select("id"),
+  );
 }
 
 export async function excluirSetor(id: string): Promise<void> {
-  const { error } = await supabase.from("setores_cozinha").delete().eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("setores_cozinha").delete().eq("id", id).select("id"));
 }
 
 // ---------------------------------------------------------------------------
@@ -224,13 +232,11 @@ export async function salvarProduto(empresaId: string, entrada: EntradaProduto):
 
 /** Produto nunca é excluído: sai do cardápio com `ativo = false` (PRD 12). */
 export async function definirProdutoAtivo(id: string, ativo: boolean): Promise<void> {
-  const { error } = await supabase.from("produtos").update({ ativo }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("produtos").update({ ativo }).eq("id", id).select("id"));
 }
 
 export async function definirProdutoDisponivel(id: string, disponivel: boolean): Promise<void> {
-  const { error } = await supabase.from("produtos").update({ disponivel }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("produtos").update({ disponivel }).eq("id", id).select("id"));
 }
 
 /**
@@ -259,22 +265,20 @@ export async function enviarImagemProduto(
 
   const { data } = supabase.storage.from(BUCKET_PRODUTOS).getPublicUrl(caminho);
 
-  const { error } = await supabase
-    .from("produtos")
-    .update({ imagem_url: data.publicUrl })
-    .eq("id", produtoId);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase
+      .from("produtos")
+      .update({ imagem_url: data.publicUrl })
+      .eq("id", produtoId)
+      .select("id"),
+  );
   return data.publicUrl;
 }
 
 export async function removerImagemProduto(produtoId: string): Promise<void> {
-  const { error } = await supabase
-    .from("produtos")
-    .update({ imagem_url: null })
-    .eq("id", produtoId);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("produtos").update({ imagem_url: null }).eq("id", produtoId).select("id"),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -334,21 +338,27 @@ export async function salvarGrupoAdicional(
     maximo: entrada.maximo,
   };
 
-  const { error } = entrada.id
-    ? await supabase.from("grupos_adicionais").update(valores).eq("id", entrada.id)
-    : await supabase.from("grupos_adicionais").insert({ empresa_id: empresaId, ...valores });
+  if (entrada.id) {
+    await exigirAlteracao(
+      supabase.from("grupos_adicionais").update(valores).eq("id", entrada.id).select("id"),
+    );
+    return;
+  }
 
+  const { error } = await supabase
+    .from("grupos_adicionais")
+    .insert({ empresa_id: empresaId, ...valores });
   if (error) throw error;
 }
 
 export async function definirGrupoAtivo(id: string, ativo: boolean): Promise<void> {
-  const { error } = await supabase.from("grupos_adicionais").update({ ativo }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("grupos_adicionais").update({ ativo }).eq("id", id).select("id"),
+  );
 }
 
 export async function excluirGrupoAdicional(id: string): Promise<void> {
-  const { error } = await supabase.from("grupos_adicionais").delete().eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("grupos_adicionais").delete().eq("id", id).select("id"));
 }
 
 export async function salvarOpcaoAdicional(
@@ -358,31 +368,33 @@ export async function salvarOpcaoAdicional(
 ): Promise<void> {
   const valores = { nome: entrada.nome.trim(), preco: entrada.preco, ordem: entrada.ordem };
 
-  const { error } = entrada.id
-    ? await supabase.from("opcoes_adicionais").update(valores).eq("id", entrada.id)
-    : await supabase
-        .from("opcoes_adicionais")
-        .insert({ empresa_id: empresaId, grupo_id: grupoId, ...valores });
+  if (entrada.id) {
+    await exigirAlteracao(
+      supabase.from("opcoes_adicionais").update(valores).eq("id", entrada.id).select("id"),
+    );
+    return;
+  }
 
+  const { error } = await supabase
+    .from("opcoes_adicionais")
+    .insert({ empresa_id: empresaId, grupo_id: grupoId, ...valores });
   if (error) throw error;
 }
 
 /** Itens já lançados guardam `nome_opcao`: renomear não altera o histórico. */
 export async function renomearOpcaoAdicional(id: string, nome: string): Promise<void> {
-  const { error } = await supabase
-    .from("opcoes_adicionais")
-    .update({ nome: nome.trim() })
-    .eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("opcoes_adicionais").update({ nome: nome.trim() }).eq("id", id).select("id"),
+  );
 }
 
 export async function definirOpcaoAtiva(id: string, ativo: boolean): Promise<void> {
-  const { error } = await supabase.from("opcoes_adicionais").update({ ativo }).eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase.from("opcoes_adicionais").update({ ativo }).eq("id", id).select("id"),
+  );
 }
 
 /** Só funciona enquanto a opção não tiver sido vendida (FK com RESTRICT). */
 export async function excluirOpcaoAdicional(id: string): Promise<void> {
-  const { error } = await supabase.from("opcoes_adicionais").delete().eq("id", id);
-  if (error) throw error;
+  await exigirAlteracao(supabase.from("opcoes_adicionais").delete().eq("id", id).select("id"));
 }

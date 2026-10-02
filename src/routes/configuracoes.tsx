@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { AppLayout, NAV } from "@/components/layout/app-layout";
+import { useConfirmacao } from "@/components/shared/confirmacao";
 import { ErrorState } from "@/components/shared/error-state";
 import { LogoEmpresa } from "@/components/shared/logo-empresa";
 import { PageHeader } from "@/components/shared/page-header";
@@ -18,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEmpresaMutations, useFormasPagamento } from "@/hooks/use-configuracoes";
 import { useConvitesPendentes, useEquipeMutations, useMembros } from "@/hooks/use-equipe";
 import { useMesaMutations, useMesas } from "@/hooks/use-mesas";
+import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { dateShort } from "@/lib/format";
 import { MODULOS_POR_PAPEL, PAPEIS, PAPEL_LABEL, type Papel } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
@@ -47,9 +49,6 @@ export const Route = createFileRoute("/configuracoes")({
   ),
 });
 
-const GATILHO_ABA =
-  "h-8 px-4 data-[state=active]:bg-primary-soft data-[state=active]:text-primary-strong data-[state=active]:shadow-none";
-
 function Configuracoes() {
   const { papel } = useEmpresaAtual();
   // Nota: controla apenas a interface; a RLS e as RPCs bloqueiam a escrita de quem não é gestor.
@@ -61,24 +60,24 @@ function Configuracoes() {
 
       <Tabs defaultValue={gestor ? "empresa" : "permissoes"}>
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <TabsList className="h-10 border border-border bg-card">
+          <TabsList className={ABAS_LISTA}>
             {gestor && (
               <>
-                <TabsTrigger value="empresa" className={GATILHO_ABA}>
+                <TabsTrigger value="empresa" className={ABAS_GATILHO}>
                   Empresa
                 </TabsTrigger>
-                <TabsTrigger value="operacao" className={GATILHO_ABA}>
+                <TabsTrigger value="operacao" className={ABAS_GATILHO}>
                   Operação
                 </TabsTrigger>
-                <TabsTrigger value="mesas" className={GATILHO_ABA}>
+                <TabsTrigger value="mesas" className={ABAS_GATILHO}>
                   Mesas
                 </TabsTrigger>
-                <TabsTrigger value="equipe" className={GATILHO_ABA}>
+                <TabsTrigger value="equipe" className={ABAS_GATILHO}>
                   Equipe
                 </TabsTrigger>
               </>
             )}
-            <TabsTrigger value="permissoes" className={GATILHO_ABA}>
+            <TabsTrigger value="permissoes" className={ABAS_GATILHO}>
               Permissões
             </TabsTrigger>
           </TabsList>
@@ -407,6 +406,7 @@ function SecaoOperacao() {
 function SecaoMesas() {
   const consulta = useMesas();
   const { salvar, alternarAtiva, excluir } = useMesaMutations();
+  const { confirmar, dialogo } = useConfirmacao();
   const [nome, setNome] = useState("");
   const [lugares, setLugares] = useState(4);
 
@@ -483,7 +483,15 @@ function SecaoMesas() {
                   size="icon"
                   variant="ghost"
                   className="size-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => excluir.mutate(mesa.id)}
+                  onClick={() =>
+                    confirmar({
+                      titulo: `Excluir ${mesa.nome}?`,
+                      descricao:
+                        "Só é possível excluir mesas que nunca tiveram comanda. Para tirar do mapa sem perder o histórico, desative.",
+                      acao: "Excluir mesa",
+                      aoConfirmar: () => excluir.mutate(mesa.id),
+                    })
+                  }
                   aria-label={`Excluir ${mesa.nome}`}
                 >
                   <Trash2 className="size-4" />
@@ -493,6 +501,7 @@ function SecaoMesas() {
           </ul>
         )}
       </div>
+      {dialogo}
     </Secao>
   );
 }

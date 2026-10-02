@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { DialogoFichaTecnica } from "@/components/shared/dialogo-ficha-tecnica";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useConfirmacao } from "@/components/shared/confirmacao";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MoneyInput } from "@/components/shared/money-input";
@@ -63,6 +64,7 @@ import {
   useSetorMutations,
   useSetores,
 } from "@/hooks/use-catalogo";
+import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { brl } from "@/lib/format";
 import { iconeDaCategoria } from "@/lib/icone-categoria";
 import { cn } from "@/lib/utils";
@@ -126,11 +128,19 @@ function Produtos() {
         <LoadingState label="Carregando cardápio…" />
       ) : (
         <Tabs defaultValue="produtos" className="gap-5">
-          <TabsList className="max-w-full overflow-x-auto">
-            <TabsTrigger value="produtos">Produtos</TabsTrigger>
-            <TabsTrigger value="adicionais">Adicionais</TabsTrigger>
-            <TabsTrigger value="setores">Setores</TabsTrigger>
-          </TabsList>
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+            <TabsList className={ABAS_LISTA}>
+              <TabsTrigger value="produtos" className={ABAS_GATILHO}>
+                Produtos
+              </TabsTrigger>
+              <TabsTrigger value="adicionais" className={ABAS_GATILHO}>
+                Adicionais
+              </TabsTrigger>
+              <TabsTrigger value="setores" className={ABAS_GATILHO}>
+                Setores
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="produtos">
             <AbaProdutos
@@ -372,6 +382,7 @@ function AbaProdutos({
 }) {
   const { salvar, alternarAtivo, alternarDisponivel, duplicar, enviarImagem, removerImagem } =
     useProdutoMutations();
+  const { confirmar, dialogo } = useConfirmacao();
   const {
     salvar: salvarCategoria,
     renomear: renomearCategoria,
@@ -706,8 +717,13 @@ function AbaProdutos({
                   <DropdownMenuItem
                     disabled={quantidadeNa(categoriaSelecionada.id) > 0}
                     onSelect={() =>
-                      excluirCategoria.mutate(categoriaSelecionada.id, {
-                        onSuccess: () => setCategoriaId(null),
+                      confirmar({
+                        titulo: `Excluir a categoria ${categoriaSelecionada.nome}?`,
+                        acao: "Excluir categoria",
+                        aoConfirmar: () =>
+                          excluirCategoria.mutate(categoriaSelecionada.id, {
+                            onSuccess: () => setCategoriaId(null),
+                          }),
                       })
                     }
                     className="text-destructive focus:text-destructive"
@@ -871,6 +887,8 @@ function AbaProdutos({
           )
         }
       />
+
+      {dialogo}
 
       <input
         ref={seletorImagem}
@@ -1168,6 +1186,7 @@ function FormularioRenomear({
 
 function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto[] }) {
   const { salvar, renomear, alternarAtivo, excluir } = useSetorMutations();
+  const { confirmar, dialogo } = useConfirmacao();
   const [nome, setNome] = useState("");
   const [renomeando, setRenomeando] = useState<Setor | null>(null);
 
@@ -1222,7 +1241,13 @@ function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto
                   size="icon"
                   variant="ghost"
                   disabled={usos > 0}
-                  onClick={() => excluir.mutate(setor.id)}
+                  onClick={() =>
+                    confirmar({
+                      titulo: `Excluir o setor ${setor.nome}?`,
+                      acao: "Excluir setor",
+                      aoConfirmar: () => excluir.mutate(setor.id),
+                    })
+                  }
                   aria-label={`Excluir ${setor.nome}`}
                 >
                   <Trash2 className="size-4" />
@@ -1247,6 +1272,7 @@ function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto
           )
         }
       />
+      {dialogo}
     </div>
   );
 }
@@ -1257,6 +1283,7 @@ function AbaSetores({ setores, produtos }: { setores: Setor[]; produtos: Produto
 
 function AbaAdicionais({ grupos }: { grupos: GrupoAdicional[] }) {
   const { salvarGrupo, alternarGrupoAtivo, excluirGrupo } = useAdicionalMutations();
+  const { confirmar, dialogo } = useConfirmacao();
   const [form, setForm] = useState<{
     id?: string;
     nome: string;
@@ -1292,7 +1319,15 @@ function AbaAdicionais({ grupos }: { grupos: GrupoAdicional[] }) {
                 })
               }
               onAlternar={(ativo) => alternarGrupoAtivo.mutate({ id: grupo.id, ativo })}
-              onExcluir={() => excluirGrupo.mutate(grupo.id)}
+              onExcluir={() =>
+                confirmar({
+                  titulo: `Excluir o grupo ${grupo.nome}?`,
+                  descricao:
+                    "As opções e o vínculo com os produtos também saem. Se alguma opção já foi vendida, a exclusão é bloqueada: desative o grupo.",
+                  acao: "Excluir grupo",
+                  aoConfirmar: () => excluirGrupo.mutate(grupo.id),
+                })
+              }
             />
           ))}
         </div>
@@ -1364,6 +1399,7 @@ function AbaAdicionais({ grupos }: { grupos: GrupoAdicional[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {dialogo}
     </div>
   );
 }
@@ -1380,6 +1416,7 @@ function CartaoGrupo({
   onExcluir: () => void;
 }) {
   const { salvarOpcao, renomearOpcao, alternarOpcaoAtiva, excluirOpcao } = useAdicionalMutations();
+  const { confirmar, dialogo } = useConfirmacao();
   const [nome, setNome] = useState("");
   const [preco, setPreco] = useState(0);
   const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null);
@@ -1440,7 +1477,15 @@ function CartaoGrupo({
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() => excluirOpcao.mutate(opcao.id)}
+                onClick={() =>
+                  confirmar({
+                    titulo: `Excluir a opção ${opcao.nome}?`,
+                    descricao:
+                      "Só é possível excluir opções que nunca foram vendidas. Nos demais casos, desative.",
+                    acao: "Excluir opção",
+                    aoConfirmar: () => excluirOpcao.mutate(opcao.id),
+                  })
+                }
                 aria-label={`Excluir ${opcao.nome}`}
               >
                 <Trash2 className="size-3.5" />

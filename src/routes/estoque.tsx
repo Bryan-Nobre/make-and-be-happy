@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEstoqueMutations, useItensEstoque, useMovimentacoesEstoque } from "@/hooks/use-estoque";
+import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { dateTime } from "@/lib/format";
 import { STATUS_ESTOQUE, TIPO_MOVIMENTACAO_ESTOQUE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -69,9 +70,6 @@ const ITEM_NOVO: FormItem = {
   quantidadeMinima: 0,
   saldoInicial: 0,
 };
-
-const GATILHO_ABA =
-  "h-8 px-4 data-[state=active]:bg-primary-soft data-[state=active]:text-primary-strong data-[state=active]:shadow-none";
 
 function Estoque() {
   const itens = useItensEstoque();
@@ -120,11 +118,11 @@ function Estoque() {
           </div>
 
           <Tabs defaultValue="itens" className="gap-4">
-            <TabsList className="h-10 border border-border bg-card">
-              <TabsTrigger value="itens" className={GATILHO_ABA}>
+            <TabsList className={ABAS_LISTA}>
+              <TabsTrigger value="itens" className={ABAS_GATILHO}>
                 Itens
               </TabsTrigger>
-              <TabsTrigger value="movimentacoes" className={GATILHO_ABA}>
+              <TabsTrigger value="movimentacoes" className={ABAS_GATILHO}>
                 Movimentações
               </TabsTrigger>
             </TabsList>
@@ -294,7 +292,11 @@ function ListaItens({
           />
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-          <Switch checked={mostrarInativos} onCheckedChange={setMostrarInativos} />
+          <Switch
+            checked={mostrarInativos}
+            onCheckedChange={setMostrarInativos}
+            aria-label="Mostrar desativados"
+          />
           Mostrar desativados
         </label>
       </div>

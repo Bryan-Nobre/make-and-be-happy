@@ -1,3 +1,4 @@
+import { exigirAlteracao } from "@/lib/erros";
 import { supabase } from "@/lib/supabase";
 import type { Database, Json } from "@/types/db";
 
@@ -188,19 +189,20 @@ export async function atualizarItemEstoque(
   id: string,
   entrada: EntradaItemEstoque,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("itens_estoque")
-    .update({
-      nome: entrada.nome.trim(),
-      codigo: entrada.codigo.trim() || null,
-      categoria: entrada.categoria.trim() || null,
-      unidade: entrada.unidade,
-      quantidade_minima: entrada.quantidadeMinima,
-    })
-    .eq("empresa_id", empresaId)
-    .eq("id", id);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase
+      .from("itens_estoque")
+      .update({
+        nome: entrada.nome.trim(),
+        codigo: entrada.codigo.trim() || null,
+        categoria: entrada.categoria.trim() || null,
+        unidade: entrada.unidade,
+        quantidade_minima: entrada.quantidadeMinima,
+      })
+      .eq("empresa_id", empresaId)
+      .eq("id", id)
+      .select("id"),
+  );
 }
 
 export async function definirItemEstoqueAtivo(
@@ -208,13 +210,14 @@ export async function definirItemEstoqueAtivo(
   id: string,
   ativo: boolean,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("itens_estoque")
-    .update({ ativo })
-    .eq("empresa_id", empresaId)
-    .eq("id", id);
-
-  if (error) throw error;
+  await exigirAlteracao(
+    supabase
+      .from("itens_estoque")
+      .update({ ativo })
+      .eq("empresa_id", empresaId)
+      .eq("id", id)
+      .select("id"),
+  );
 }
 
 /** Em AJUSTE, `quantidade` é o novo saldo contado; nos demais, o quanto entra ou sai. */

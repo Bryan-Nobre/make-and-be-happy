@@ -1,13 +1,12 @@
+import { ErroDeRegra } from "@/lib/erros";
+
 /** Maior lado da foto depois da conversão; suficiente para cards e telas retina. */
 const LADO_MAXIMO = 1200;
 const QUALIDADE = 0.82;
 /** Limite do arquivo original, antes da compressão. */
 export const TAMANHO_MAXIMO_ORIGINAL = 15 * 1024 * 1024;
 
-/** Usa o código de regra de negócio para `mensagemDeErro` exibir o texto como está. */
-export class ErroImagem extends Error {
-  readonly code = "P0001";
-}
+export class ErroImagem extends ErroDeRegra {}
 
 async function decodificar(arquivo: File): Promise<ImageBitmap | HTMLImageElement> {
   try {

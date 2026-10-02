@@ -77,6 +77,28 @@ export function mensagemDeErro(erro: unknown, porCodigo: Record<string, string> 
   return MENSAGEM_PADRAO;
 }
 
+/** Erro com texto já pronto para o usuário, exibido como está por `mensagemDeErro`. */
+export class ErroDeRegra extends Error {
+  readonly code = CODIGO_REGRA_NEGOCIO;
+}
+
+/**
+ * A RLS não acusa erro em UPDATE/DELETE bloqueado: a operação só não afeta
+ * nenhuma linha. Pedir as linhas de volta (`.select("id")`) e exigir pelo
+ * menos uma evita mostrar "salvo" quando nada mudou.
+ */
+export async function exigirAlteracao(
+  consulta: PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<void> {
+  const { data, error } = await consulta;
+  if (error) throw error;
+  if (!data?.length) {
+    throw new ErroDeRegra(
+      "Você não tem permissão para esta alteração ou o registro não existe mais.",
+    );
+  }
+}
+
 /** Códigos do Postgres usados nas mensagens específicas de cada tela. */
 export const ERRO = {
   duplicado: "23505",

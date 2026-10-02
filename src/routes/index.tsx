@@ -348,7 +348,7 @@ function EstoqueBaixo() {
       titulo="Estoque baixo"
       extra={
         podeVerEstoque && (
-          <Button asChild variant="link" size="sm" className="h-auto p-0">
+          <Button asChild variant="link" size="sm" className="h-8 px-0">
             <Link to="/estoque">Ver estoque</Link>
           </Button>
         )
