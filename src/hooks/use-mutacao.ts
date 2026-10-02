@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { mensagemDeErro } from "@/lib/erros";
+import { estadoConexao } from "@/lib/offline/conectividade";
 
 type Opcoes<TEntrada, TSaida> = {
   executar: (entrada: TEntrada) => Promise<TSaida>;
@@ -42,7 +43,11 @@ export function useMutacao<TEntrada = void, TSaida = void>({
       aoConcluir?.(saida, entrada);
     },
     onError: (causa) => {
-      toast.error(mensagemDeErro(causa, erros));
+      toast.error(
+        estadoConexao() === "OFFLINE" || !navigator.onLine
+          ? "Sem conexão. Esta ação precisa de internet e não foi realizada."
+          : mensagemDeErro(causa, erros),
+      );
     },
   });
 }

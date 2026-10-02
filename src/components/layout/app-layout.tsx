@@ -16,6 +16,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { IndicadorConexao } from "@/components/layout/indicador-conexao";
 import { RotaProtegida } from "@/components/layout/rota-protegida";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LogoEmpresa } from "@/components/shared/logo-empresa";
@@ -371,6 +372,7 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
           </p>
 
           <div className="flex shrink-0 items-center gap-2">
+            <IndicadorConexao />
             {empresa && podeVer("caixa") && <SeloCaixa />}
             <UserMenu />
           </div>

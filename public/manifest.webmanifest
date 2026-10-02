@@ -1,0 +1,12 @@
+{
+  "name": "ARVON FOOD",
+  "short_name": "ARVON FOOD",
+  "description": "Gestão para restaurantes: PDV, mesas, cozinha, caixa e estoque.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [{ "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }]
+}

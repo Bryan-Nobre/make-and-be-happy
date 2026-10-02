@@ -9,8 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
+import { registrarServiceWorker } from "@/lib/offline/service-worker";
 import { AuthProvider } from "@/providers/auth";
 import { EmpresaProvider } from "@/providers/empresa";
+import { CacheOfflineProvider } from "@/providers/offline";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -80,6 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "theme-color", content: "#ffffff" },
       { title: "ARVON FOOD — Gestão para restaurantes" },
       {
         name: "description",
@@ -106,6 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -131,13 +135,19 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    void registrarServiceWorker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <EmpresaProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <Toaster richColors position="top-right" />
+          <CacheOfflineProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+            <Toaster richColors position="top-right" />
+          </CacheOfflineProvider>
         </EmpresaProvider>
       </AuthProvider>
     </QueryClientProvider>
