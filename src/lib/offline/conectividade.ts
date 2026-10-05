@@ -67,8 +67,11 @@ async function verificar() {
     });
     falhas = 0;
     definir(performance.now() - inicio > LIMITE_LENTO_MS ? "INSTAVEL" : "ONLINE");
-  } catch {
-    falhas += 1;
+  } catch (erro) {
+    // Timeout é sinal de rede ruim; erro imediato é falta de rota. Com
+    // adaptadores virtuais (VPN), `navigator.onLine` segue `true` sem internet.
+    const timeout = erro instanceof DOMException && erro.name === "AbortError";
+    falhas = timeout ? falhas + 1 : FALHAS_PARA_OFFLINE;
     definir(falhas >= FALHAS_PARA_OFFLINE ? "OFFLINE" : "INSTAVEL");
   } finally {
     clearTimeout(limite);
@@ -109,6 +112,15 @@ export function iniciarConectividade() {
 }
 
 export const estadoConexao = () => estado;
+
+/**
+ * Testa a conexão agora. Chamado quando uma consulta falha: se a rede caiu, a
+ * nova tentativa do TanStack Query fica pausada e o dado salvo continua na
+ * tela, em vez de virar erro.
+ */
+export function verificarConexao() {
+  if (iniciado) void verificar();
+}
 
 function assinar(ouvinte: () => void) {
   ouvintes.add(ouvinte);

@@ -23,8 +23,8 @@ const OPERACAO: readonly ModuloKey[] = ["pdv", "mesas"];
 
 /**
  * Consultas que podem ir para o disco e o módulo exigido para cada uma. O que
- * não está aqui (relatórios, dashboard, estoque, clientes, equipe, histórico do
- * caixa) nunca é persistido.
+ * não está aqui (relatórios, estoque, clientes, equipe, histórico do caixa)
+ * nunca é persistido.
  *
  * Nota: o filtro por papel só evita guardar no aparelho o que a tela daquele
  * papel não usa. O que cada papel pode ler é decidido pela RLS.
@@ -38,6 +38,7 @@ const PERSISTIVEIS: Record<string, readonly ModuloKey[]> = {
   salao: OPERACAO,
   setores: [...OPERACAO, "cozinha"],
   cozinha: ["cozinha"],
+  dashboard: ["dashboard"],
 };
 
 /** No caixa, só o estado operacional: movimentações, pagamentos e fechamentos ficam de fora. */

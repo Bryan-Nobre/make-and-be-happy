@@ -1,7 +1,7 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import { iniciarConectividade } from "./lib/offline/conectividade";
+import { iniciarConectividade, verificarConexao } from "./lib/offline/conectividade";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
@@ -9,6 +9,7 @@ export const getRouter = () => {
   iniciarConectividade();
 
   const queryClient = new QueryClient({
+    queryCache: new QueryCache({ onError: verificarConexao }),
     defaultOptions: {
       queries: {
         retry: 1,
