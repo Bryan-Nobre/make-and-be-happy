@@ -15,6 +15,10 @@ export const getRouter = () => {
         retry: 1,
         refetchOnWindowFocus: false,
         staleTime: 30 * 1000,
+        // O cache offline salva uma foto do que está na memória. Com o padrão
+        // de 5 min, telas não abertas sumiam da memória e, no salvamento
+        // seguinte, também do disco. 24h acompanha a validade do cache salvo.
+        gcTime: 24 * 60 * 60 * 1000,
       },
       mutations: {
         // Sem conexão a mutation falha na hora em vez de ficar pausada e ser

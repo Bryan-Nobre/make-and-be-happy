@@ -17,6 +17,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { IndicadorConexao } from "@/components/layout/indicador-conexao";
+import { PainelPendencias } from "@/components/layout/painel-pendencias";
 import { RotaProtegida } from "@/components/layout/rota-protegida";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LogoEmpresa } from "@/components/shared/logo-empresa";
@@ -38,6 +39,7 @@ import { mensagemDeErro } from "@/lib/erros";
 import { MODULOS_DE_GESTAO, PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 import { useEmpresa } from "@/providers/empresa";
+import { useFilaOffline } from "@/providers/fila-offline";
 import { sair } from "@/services/auth";
 
 type NavItem = {
@@ -96,8 +98,17 @@ function useSair() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [saindo, setSaindo] = useState(false);
+  const { pendentes } = useFilaOffline();
 
   const sairDaConta = async () => {
+    // Sair apaga os dados locais, e com eles os pedidos ainda não enviados.
+    if (pendentes > 0) {
+      toast.error(
+        `Há ${pendentes} pedido${pendentes > 1 ? "s" : ""} feito${pendentes > 1 ? "s" : ""} offline ainda não enviado${pendentes > 1 ? "s" : ""}.`,
+        { description: "Sincronize ou descarte em Pendências antes de sair." },
+      );
+      return;
+    }
     setSaindo(true);
     try {
       await sair();
@@ -373,6 +384,7 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
 
           <div className="flex shrink-0 items-center gap-2">
             <IndicadorConexao />
+            <PainelPendencias />
             {empresa && podeVer("caixa") && <SeloCaixa />}
             <UserMenu />
           </div>

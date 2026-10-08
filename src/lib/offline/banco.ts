@@ -11,12 +11,13 @@
 
 const NOME_BANCO = "arvon-offline";
 /** Versão da estrutura do IndexedDB (object stores). */
-const VERSAO_BANCO = 1;
+const VERSAO_BANCO = 2;
 /** Versão do formato dos dados gravados. Mudou o formato, incremente: o que for antigo é descartado. */
 export const SCHEMA_VERSION = 1;
 
-export type Store = "meta" | "contexto" | "consultas";
-const STORES: readonly Store[] = ["meta", "contexto", "consultas"];
+/** `fila` guarda ações feitas sem conexão, com chave `usuario:empresa:requisicao`. */
+export type Store = "meta" | "contexto" | "consultas" | "fila";
+const STORES: readonly Store[] = ["meta", "contexto", "consultas", "fila"];
 
 /** Metadados de um escopo usuário + empresa. */
 export type MetaEscopo = {
@@ -87,6 +88,19 @@ export async function ler<T>(store: Store, chave: string): Promise<T | undefined
   }
 }
 
+/** Registros cuja chave começa com `prefixo`. */
+export async function listarPorPrefixo<T>(store: Store, prefixo: string): Promise<T[]> {
+  const banco = await abrir();
+  if (!banco) return [];
+  try {
+    const transacao = banco.transaction(store, "readonly");
+    const faixa = IDBKeyRange.bound(prefixo, `${prefixo}\uffff`);
+    return ((await concluir(transacao.objectStore(store).getAll(faixa), transacao)) ?? []) as T[];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Grava um registro. Com `geracaoEsperada`, a gravação é ignorada se houve uma
  * limpeza depois que ela começou (ex.: logout no meio de um salvamento).
@@ -119,7 +133,11 @@ export async function remover(store: Store, chave: string): Promise<void> {
   }
 }
 
-/** Apaga tudo o que pertence a uma empresa do usuário. */
+/**
+ * Apaga o cache de leitura de uma empresa do usuário. A fila de ações não é
+ * apagada: são pedidos ainda não enviados, que sincronizam quando o usuário
+ * voltar para aquela empresa.
+ */
 export async function limparEscopo(usuarioId: string, empresaId: string): Promise<void> {
   geracao += 1;
   const escopo = escopoDe(usuarioId, empresaId);

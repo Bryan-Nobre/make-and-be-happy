@@ -79,13 +79,25 @@ export function useNovoPedido(comandaInicial: string | null) {
           observacoes: i.observacoes,
           adicionais: i.adicionais.map((a) => a.id),
         })),
+        resumo: {
+          destino: destino?.nome ?? "Balcão",
+          itens: carrinho.itens.map((i) => ({ nome: i.produto.nome, quantidade: i.quantidade })),
+          totalPrevisto: total,
+        },
       },
       {
         onSuccess: (pedidoId) => {
+          reiniciar();
+          if (pedidoId === null) {
+            toast.warning("Sem conexão: pedido salvo no aparelho.", {
+              description:
+                "Ele será enviado sozinho quando a internet voltar. Cozinha e pagamento só depois disso.",
+            });
+            return;
+          }
           toast.success(
             destino ? `Pedido lançado na ${destino.nome}.` : "Pedido enviado para a cozinha.",
           );
-          reiniciar();
           aoEnviar(pedidoId);
         },
       },

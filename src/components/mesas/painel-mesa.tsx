@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChefHat, Minus, Plus, UserRound } from "lucide-react";
+import { ChefHat, CloudOff, Minus, Plus, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { DialogoPagamento } from "@/components/shared/payment-dialog";
 import { BotaoCliente, SeletorCliente } from "@/components/shared/seletor-cliente";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { StatusBadge, type Tone } from "@/components/shared/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +31,11 @@ import {
 } from "@/hooks/use-pedidos";
 import { brl, elapsed } from "@/lib/format";
 import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
+import type { AcaoOffline, EstadoAcao } from "@/lib/offline/fila";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
+import { useFilaOffline } from "@/providers/fila-offline";
 import type { MesaEstado, PedidoDaComanda } from "@/services/pedidos";
 
 import { VISUAL_MESA, nomeComanda, pessoasTexto } from "./visual";
@@ -221,6 +223,63 @@ function consolidarItens(pedidos: PedidoDaComanda[]): ItemConsolidado[] {
   return [...mapa.values()];
 }
 
+const ESTADO_ENVIO: Record<EstadoAcao, { rotulo: string; tom: Tone }> = {
+  pendente: { rotulo: "Aguardando envio", tom: "neutral" },
+  sincronizando: { rotulo: "Enviando", tom: "info" },
+  sincronizado: { rotulo: "Enviado", tom: "success" },
+  erro: { rotulo: "Erro no envio", tom: "danger" },
+  conflito: { rotulo: "Não aceito", tom: "warning" },
+};
+
+/**
+ * Pedidos desta comanda feitos sem conexão e ainda não aceitos pelo servidor.
+ * Ficam fora do total: o valor oficial só existe depois que o banco recalcula.
+ */
+function PedidosAguardandoEnvio({ acoes }: { acoes: AcaoOffline[] }) {
+  if (acoes.length === 0) return null;
+
+  return (
+    <section aria-label="Pedidos aguardando envio" className="space-y-2">
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+        <CloudOff className="size-3.5" aria-hidden="true" />
+        Feitos offline
+      </h3>
+      <ul className="space-y-2">
+        {acoes.map((acao) => {
+          const estado = ESTADO_ENVIO[acao.estado];
+          return (
+            <li
+              key={acao.id}
+              className="space-y-1.5 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <StatusBadge tone={estado.tom}>{estado.rotulo}</StatusBadge>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  previsto {brl(acao.resumo.totalPrevisto)}
+                </span>
+              </div>
+              <ul>
+                {acao.resumo.itens.map((item, n) => (
+                  <li key={n} className="flex gap-3 text-muted-foreground">
+                    <span className="w-7 shrink-0 font-semibold tabular-nums">
+                      {item.quantidade}x
+                    </span>
+                    <span className="min-w-0 flex-1">{item.nome}</span>
+                  </li>
+                ))}
+              </ul>
+              {acao.erro && <p className="text-xs text-destructive">{acao.erro}</p>}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        Ainda não estão na cozinha nem no total. São enviados quando a internet voltar.
+      </p>
+    </section>
+  );
+}
+
 function DetalheComanda({
   comandaId,
   mesa,
@@ -238,6 +297,7 @@ function DetalheComanda({
   const comanda = useComanda(comandaId);
   const pedidos = usePedidosDaComanda(comandaId);
   const acoes = useComandaMutations();
+  const fila = useFilaOffline();
   const [detalhada, setDetalhada] = useState(false);
   const [destino, setDestino] = useState("");
   const [cancelandoComanda, setCancelandoComanda] = useState(false);
@@ -281,6 +341,9 @@ function DetalheComanda({
   const aberta = c.status === "OPEN";
   const aguardandoPagamento = c.status === "PAYMENT_PENDING" || c.status === "PAID";
   const itens = consolidarItens(pedidos.data);
+  const aguardandoEnvio = fila.acoes.filter(
+    (a) => a.entrada.comandaId === comandaId && a.estado !== "sincronizado",
+  );
 
   return (
     <>
@@ -293,6 +356,7 @@ function DetalheComanda({
               onClick={() => setEscolhendoCliente(true)}
             />
             <ListaPedidos pedidos={pedidos.data} />
+            <PedidosAguardandoEnvio acoes={aguardandoEnvio} />
           </>
         ) : (
           <section aria-label="Itens da comanda" className="space-y-3">
@@ -308,9 +372,11 @@ function DetalheComanda({
               )}
             </div>
             {itens.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                Nenhum pedido lançado.
-              </p>
+              aguardandoEnvio.length === 0 && (
+                <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+                  Nenhum pedido lançado.
+                </p>
+              )
             ) : (
               <ul className="divide-y divide-dashed divide-border border-y border-dashed border-border">
                 {itens.map((i) => (
@@ -341,6 +407,7 @@ function DetalheComanda({
                   : `${c.pedidosEmProducao} pedidos em produção`}
               </p>
             )}
+            <PedidosAguardandoEnvio acoes={aguardandoEnvio} />
           </section>
         )}
 

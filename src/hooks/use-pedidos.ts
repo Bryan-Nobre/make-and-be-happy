@@ -2,8 +2,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { chaves } from "@/lib/chaves";
+import { estadoConexao } from "@/lib/offline/conectividade";
+import { ehFalhaDeRede, enfileirarPedido, type ResumoPedido } from "@/lib/offline/fila";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/providers/auth";
 import { useEmpresaAtual } from "@/providers/empresa";
+import { useFilaOffline } from "@/providers/fila-offline";
 import * as servico from "@/services/pedidos";
 import { dataNoFuso, limitesDoPeriodo } from "@/services/relatorios";
 
@@ -207,6 +211,8 @@ export function useComandaMutations() {
 
 export function usePedidoMutations() {
   const { empresa } = useEmpresaAtual();
+  const { usuario } = useAuth();
+  const fila = useFilaOffline();
   // Confirmar, alterar e cancelar pedidos baixa ou devolve estoque no banco.
   const invalidar = [
     chaves.salao(empresa.id),
@@ -216,14 +222,48 @@ export function usePedidoMutations() {
     chaves.clientes(empresa.id),
   ];
 
+  /**
+   * Sem conexão, o pedido vai para a fila do aparelho e a resposta é `null`:
+   * ele ainda não existe no servidor. Uma falha de rede no envio também
+   * enfileira; como a fila reenvia o mesmo `requisicaoId`, se o servidor tiver
+   * recebido a primeira tentativa, o pedido não é duplicado.
+   */
   const criar = useMutacao({
-    executar: (entrada: {
+    executar: async (entrada: {
       comandaId: string | null;
       clienteId?: string | null;
       itens: servico.ItemNovo[];
       desconto: number;
       requisicaoId: string;
-    }) => servico.criarPedido(empresa.id, entrada),
+      resumo: ResumoPedido;
+    }): Promise<string | null> => {
+      const guardar = async () => {
+        if (!usuario) throw new Error("Sessão não identificada");
+        await enfileirarPedido({
+          id: entrada.requisicaoId,
+          usuarioId: usuario.id,
+          empresaId: empresa.id,
+          entrada: {
+            comandaId: entrada.comandaId,
+            clienteId: entrada.clienteId ?? null,
+            itens: entrada.itens,
+            desconto: entrada.desconto,
+          },
+          resumo: entrada.resumo,
+        });
+        fila.recarregar();
+        fila.sincronizar();
+        return null;
+      };
+
+      if (estadoConexao() === "OFFLINE" || !navigator.onLine) return guardar();
+      try {
+        return await servico.criarPedido(empresa.id, entrada);
+      } catch (erro) {
+        if (ehFalhaDeRede(erro)) return guardar();
+        throw erro;
+      }
+    },
     invalidar,
   });
 
