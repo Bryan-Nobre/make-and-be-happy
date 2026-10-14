@@ -106,13 +106,13 @@ function MesaNoMapa({
             destacada && "ring-2 ring-primary ring-offset-2 ring-offset-background",
           )}
         >
-          {mesa.aberturaPendente && (
+          {(mesa.aberturaPendente || mesa.contaPendente) && (
             <span
               className="absolute -top-2 -left-2 flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm"
-              title="Abertura pendente: aguardando envio"
+              title="Feito neste aparelho: aguardando envio"
             >
               <CloudOff className="size-3" aria-hidden="true" />
-              <span className="sr-only">Abertura pendente</span>
+              <span className="sr-only">Aguardando envio</span>
             </span>
           )}
           {mesa.pedidosEmProducao > 0 && (
@@ -239,8 +239,10 @@ export function ListaMesas({
                 <span className="block truncate text-xs text-muted-foreground tabular-nums">
                   {livre
                     ? "Livre"
-                    : m.aberturaPendente
-                      ? "Abertura pendente"
+                    : m.aberturaPendente || m.contaPendente
+                      ? m.contaPendente
+                        ? "Conta pedida · aguardando envio"
+                        : "Abertura pendente"
                       : [m.pessoas ? pessoasTexto(m.pessoas) : null, brl(valorDaMesa(m))]
                           .filter(Boolean)
                           .join(" · ")}

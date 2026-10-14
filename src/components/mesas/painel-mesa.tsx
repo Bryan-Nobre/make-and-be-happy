@@ -35,6 +35,7 @@ import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
 import { useConexao } from "@/lib/offline/conectividade";
 import {
   aberturaDaComandaLocal,
+  contaPendenteDe,
   dependentesDe,
   type AcaoPedido,
   type EstadoAcao,
@@ -108,7 +109,7 @@ export function PainelMesa({
         </DialogDescription>
       </DialogHeader>
       {provisoria && mesa.comandaId ? (
-        <ComandaProvisoria comandaId={mesa.comandaId} />
+        <ComandaProvisoria comandaId={mesa.comandaId} nomeMesa={mesa.nome} />
       ) : mesa.comandaId ? (
         <DetalheComanda
           comandaId={mesa.comandaId}
@@ -297,18 +298,53 @@ function PedidosAguardandoEnvio({ acoes }: { acoes: AcaoPedido[] }) {
   );
 }
 
+/** Pedido de conta guardado no aparelho. Enquanto não é enviado, pode ser desfeito. */
+function ContaPedidaOffline({
+  estado,
+  aoDesfazer,
+}: {
+  estado: EstadoAcao;
+  aoDesfazer: () => void;
+}) {
+  const envio = ESTADO_ENVIO[estado];
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 font-medium text-foreground">
+          <CloudOff className="size-3.5" aria-hidden="true" />
+          Conta pedida neste aparelho
+        </span>
+        <StatusBadge tone={envio.tom}>{envio.rotulo}</StatusBadge>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        O caixa só vê o pedido de conta depois do envio. Para lançar mais pedidos, desfaça.
+      </p>
+      {estado !== "sincronizando" && (
+        <Button variant="outline" size="sm" className="w-full" onClick={aoDesfazer}>
+          Desfazer pedido de conta
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * Mesa aberta neste aparelho sem conexão. A comanda ainda não existe no
- * servidor, então só é possível lançar pedidos; o resto espera o envio.
+ * servidor, então só é possível lançar pedidos e pedir a conta; o resto
+ * espera o envio.
  */
-function ComandaProvisoria({ comandaId }: { comandaId: string }) {
+function ComandaProvisoria({ comandaId, nomeMesa }: { comandaId: string; nomeMesa: string }) {
   const fila = useFilaOffline();
   const conexao = useConexao();
+  const { pedirConta } = useComandaMutations();
   const { confirmar, dialogo } = useConfirmacao();
 
   const aberturaId = aberturaDaComandaLocal(comandaId);
   const abertura = fila.acoes.find((a) => a.id === aberturaId);
-  const pedidos = dependentesDe(fila.acoes, aberturaId).filter((a) => a.estado !== "sincronizado");
+  const pedidos = dependentesDe(fila.acoes, aberturaId).filter(
+    (a): a is AcaoPedido => a.tipo === "criar_pedido" && a.estado !== "sincronizado",
+  );
+  const conta = contaPendenteDe(fila.acoes, comandaId);
   const conflito = abertura?.estado === "conflito";
 
   const descartar = () =>
@@ -379,13 +415,30 @@ function ComandaProvisoria({ comandaId }: { comandaId: string }) {
           </>
         ) : (
           <>
-            <Button asChild size="operational" className="w-full">
-              <Link to="/pedidos" search={{ comanda: comandaId }}>
-                Adicionar pedido
-              </Link>
-            </Button>
+            {conta ? (
+              <ContaPedidaOffline
+                estado={conta.estado}
+                aoDesfazer={() => fila.descartar(conta.id)}
+              />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button asChild className="h-11">
+                  <Link to="/pedidos" search={{ comanda: comandaId }}>
+                    Adicionar pedido
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  disabled={pedidos.length === 0 || pedirConta.isPending}
+                  onClick={() => pedirConta.mutate({ comandaId, nomeMesa })}
+                >
+                  Pedir conta
+                </Button>
+              </div>
+            )}
             <p className="text-center text-xs text-muted-foreground">
-              Pedir conta, transferir e liberar ficam disponíveis depois do envio.
+              Transferir, receber e liberar ficam disponíveis depois do envio.
             </p>
             {abertura?.estado !== "sincronizando" && (
               <Button
@@ -463,7 +516,8 @@ function DetalheComanda({
   const saldo = Math.max(0, c.total - c.valorPago);
   const contaPaga = c.total > 0 && saldo === 0;
   const podeLiberar = saldo === 0 && c.pedidosEmProducao === 0;
-  const aberta = c.status === "OPEN";
+  const contaPendente = contaPendenteDe(fila.acoes, comandaId);
+  const aberta = c.status === "OPEN" && !contaPendente;
   const aguardandoPagamento = c.status === "PAYMENT_PENDING" || c.status === "PAID";
   const itens = consolidarItens(pedidos.data);
   const aguardandoEnvio = fila.acoes.filter(
@@ -674,6 +728,13 @@ function DetalheComanda({
           </p>
         )}
 
+        {contaPendente && (
+          <ContaPedidaOffline
+            estado={contaPendente.estado}
+            aoDesfazer={() => fila.descartar(contaPendente.id)}
+          />
+        )}
+
         {(aberta || aguardandoPagamento) && (
           <div className="flex justify-center">
             {aberta ? (
@@ -682,7 +743,7 @@ function DetalheComanda({
                 size="sm"
                 className="text-muted-foreground"
                 disabled={acoes.pedirConta.isPending}
-                onClick={() => acoes.pedirConta.mutate(c.id)}
+                onClick={() => acoes.pedirConta.mutate({ comandaId: c.id, nomeMesa: mesa.nome })}
               >
                 Pedir conta
               </Button>

@@ -37,7 +37,7 @@ Legenda: ✅ concluído · 🟡 parcial · ⏳ próximo passo · ⬜ não inicia
 | Fila de pedidos | Criar pedido sem internet; envio automático e sem duplicidade; estados pendente / sincronizando / sincronizado / erro / conflito; tela de Pendências; logout bloqueado com pendências | ✅ |
 | Pedidos pendentes na comanda | Pedidos feitos offline aparecem na comanda da mesa, fora do total oficial | ✅ |
 | Abrir mesa offline | Abrir comanda sem internet e lançar pedido nela; tratar mesa aberta em outro aparelho (lançar na comanda já aberta ou descartar) | ✅ |
-| Demais ações offline | Pedir conta, transferir etc. Pagamento e fechamento de caixa continuam exigindo internet | ⏳ |
+| Demais ações offline | Pedir conta offline (com "desfazer" enquanto não enviado). Transferir, cancelar, encerrar, reabrir, pagamento, caixa, estoque e cadastros continuam exigindo internet (decisão de escopo) | ✅ |
 
 Limitações conhecidas do offline:
 - A cozinha (em qualquer aparelho, inclusive no mesmo) só mostra o pedido depois que o servidor o aceita.

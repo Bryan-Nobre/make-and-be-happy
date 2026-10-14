@@ -36,6 +36,13 @@ export type ResumoPedido = {
 export type EntradaAberturaOffline = { mesaId: string; pessoas: number };
 export type ResumoAbertura = { mesa: string; pessoas: number };
 
+export type EntradaPedirContaOffline = {
+  comandaId: string | null;
+  /** Abertura de mesa feita offline da qual o pedido de conta depende. */
+  comandaLocal?: string | null;
+};
+export type ResumoPedirConta = { mesa: string };
+
 type Base = {
   schemaVersion: number;
   id: string;
@@ -63,7 +70,20 @@ export type AcaoAbertura = Base & {
   resumo: ResumoAbertura;
 };
 
-export type AcaoOffline = AcaoPedido | AcaoAbertura;
+/**
+ * `pedir_conta` não tem `client_request_id` no servidor: reenviar depois de um
+ * sucesso é recusado com "comanda não está aberta". A sincronização confere o
+ * estado da comanda antes de tratar isso como conflito.
+ */
+export type AcaoPedirConta = Base & {
+  tipo: "pedir_conta";
+  entrada: EntradaPedirContaOffline;
+  resumo: ResumoPedirConta;
+};
+
+export type AcaoOffline = AcaoPedido | AcaoAbertura | AcaoPedirConta;
+/** Ações que apontam para uma comanda e podem depender de uma abertura offline. */
+export type AcaoNaComanda = AcaoPedido | AcaoPedirConta;
 
 /** Comanda aberta offline ainda sem id no servidor. */
 const PREFIXO_LOCAL = "local:";
@@ -119,11 +139,42 @@ export function enfileirarAbertura(
   return salvarAcao({ ...novaBase(escopo), tipo: "abrir_comanda", entrada, resumo });
 }
 
-/** Pedidos que esperam a abertura de mesa informada. */
+export function enfileirarPedirConta(
+  dados: Escopo & { entrada: EntradaPedirContaOffline; resumo: ResumoPedirConta },
+): Promise<void> {
+  const { entrada, resumo, ...escopo } = dados;
+  return salvarAcao({ ...novaBase(escopo), tipo: "pedir_conta", entrada, resumo });
+}
+
+const naComanda = (a: AcaoOffline): a is AcaoNaComanda =>
+  a.tipo === "criar_pedido" || a.tipo === "pedir_conta";
+
+/** Ações que esperam a abertura de mesa informada. */
 export const dependentesDe = (acoes: AcaoOffline[], aberturaId: string) =>
-  acoes.filter(
-    (a): a is AcaoPedido => a.tipo === "criar_pedido" && a.entrada.comandaLocal === aberturaId,
-  );
+  acoes.filter((a): a is AcaoNaComanda => naComanda(a) && a.entrada.comandaLocal === aberturaId);
+
+/** Aponta a ação para a comanda real, criada quando a abertura foi aceita. */
+export const ligarAComanda = <T extends AcaoNaComanda>(acao: T, comandaId: string): T => ({
+  ...acao,
+  entrada: { ...acao.entrada, comandaId, comandaLocal: null },
+});
+
+/**
+ * Pedido de conta ainda não aceito pelo servidor para a comanda (id real ou
+ * `local:`). Conflitos ficam de fora: a comanda segue aberta no servidor.
+ */
+export const contaPendenteDe = (acoes: AcaoOffline[], comandaId: string | null) =>
+  comandaId === null
+    ? undefined
+    : acoes.find(
+        (a): a is AcaoPedirConta =>
+          a.tipo === "pedir_conta" &&
+          a.estado !== "sincronizado" &&
+          a.estado !== "conflito" &&
+          (ehComandaLocal(comandaId)
+            ? a.entrada.comandaLocal === aberturaDaComandaLocal(comandaId)
+            : a.entrada.comandaId === comandaId),
+      );
 
 /** Ações do escopo, da mais antiga para a mais nova. Remove as já sincronizadas há algum tempo. */
 export async function listarFila(usuarioId: string, empresaId: string): Promise<AcaoOffline[]> {

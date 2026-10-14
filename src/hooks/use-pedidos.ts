@@ -6,15 +6,18 @@ import { ErroDeRegra } from "@/lib/erros";
 import { estadoConexao } from "@/lib/offline/conectividade";
 import {
   aberturaDaComandaLocal,
+  contaPendenteDe,
   ehComandaLocal,
   ehFalhaDeRede,
   enfileirarAbertura,
   enfileirarPedido,
+  enfileirarPedirConta,
   idComandaLocal,
   type AcaoAbertura,
   type ResumoPedido,
 } from "@/lib/offline/fila";
 import { supabase } from "@/lib/supabase";
+import { novoUuid } from "@/lib/uuid";
 import { useAuth } from "@/providers/auth";
 import { useEmpresaAtual } from "@/providers/empresa";
 import { useFilaOffline } from "@/providers/fila-offline";
@@ -117,23 +120,31 @@ export function useMesasEstado() {
     [acoes],
   );
 
+  const temContaPendente = acoes.some((a) => a.tipo === "pedir_conta");
+
   const sobrepor = useCallback(
     (mesas: servico.MesaEstado[]) => {
-      if (aberturas.length === 0) return mesas;
-      return mesas.map((mesa) => {
+      if (aberturas.length === 0 && !temContaPendente) return mesas;
+      return mesas.map((original) => {
+        let mesa = original;
         const abertura = aberturas.find((a) => a.entrada.mesaId === mesa.id);
-        if (!abertura || mesa.status !== "LIVRE") return mesa;
-        return {
-          ...mesa,
-          status: "OCUPADA" as const,
-          comandaId: idComandaLocal(abertura.id),
-          pessoas: abertura.entrada.pessoas,
-          abertaEm: new Date(abertura.criadoEm).toISOString(),
-          aberturaPendente: true,
-        };
+        if (abertura && mesa.status === "LIVRE") {
+          mesa = {
+            ...mesa,
+            status: "OCUPADA",
+            comandaId: idComandaLocal(abertura.id),
+            pessoas: abertura.entrada.pessoas,
+            abertaEm: new Date(abertura.criadoEm).toISOString(),
+            aberturaPendente: true,
+          };
+        }
+        if (mesa.status === "OCUPADA" && contaPendenteDe(acoes, mesa.comandaId)) {
+          mesa = { ...mesa, status: "AGUARDANDO_PAGAMENTO", contaPendente: true };
+        }
+        return mesa;
       });
     },
-    [aberturas],
+    [acoes, aberturas, temContaPendente],
   );
 
   return useQuery({
@@ -256,9 +267,46 @@ export function useComandaMutations() {
     invalidar,
   });
 
+  /**
+   * Sem conexão, o pedido de conta vai para a fila e a resposta é `false`. Em
+   * mesa aberta offline, ele espera a abertura (e os pedidos dela) ser aceita.
+   */
   const pedirConta = useMutacao({
-    executar: (comandaId: string) => servico.pedirConta(comandaId),
-    sucesso: "Conta solicitada.",
+    executar: async (entrada: { comandaId: string; nomeMesa: string }): Promise<boolean> => {
+      const local = ehComandaLocal(entrada.comandaId) ? entrada.comandaId : null;
+      const guardar = async () => {
+        if (!usuario) throw new Error("Sessão não identificada");
+        if (contaPendenteDe(fila.acoes, entrada.comandaId)) {
+          throw new ErroDeRegra(`A conta da ${entrada.nomeMesa} já foi pedida neste aparelho.`);
+        }
+        await enfileirarPedirConta({
+          id: novoUuid(),
+          usuarioId: usuario.id,
+          empresaId: empresa.id,
+          entrada: {
+            comandaId: local ? null : entrada.comandaId,
+            comandaLocal: local ? aberturaDaComandaLocal(local) : null,
+          },
+          resumo: { mesa: entrada.nomeMesa },
+        });
+        fila.recarregar();
+        fila.sincronizar();
+        return false;
+      };
+
+      if (local || estadoConexao() === "OFFLINE" || !navigator.onLine) return guardar();
+      try {
+        await servico.pedirConta(entrada.comandaId);
+        return true;
+      } catch (erro) {
+        if (ehFalhaDeRede(erro)) return guardar();
+        throw erro;
+      }
+    },
+    sucesso: (enviado) =>
+      enviado
+        ? "Conta solicitada."
+        : "Sem conexão: conta pedida neste aparelho. Será enviada quando a internet voltar.",
     invalidar,
   });
 
@@ -326,6 +374,12 @@ export function usePedidoMutations() {
       requisicaoId: string;
       resumo: ResumoPedido;
     }): Promise<string | null> => {
+      // O servidor recusaria o pedido numa comanda com a conta pedida.
+      if (contaPendenteDe(fila.acoes, entrada.comandaId)) {
+        throw new ErroDeRegra(
+          "A conta desta mesa foi pedida neste aparelho. Desfaça o pedido de conta para lançar novos pedidos.",
+        );
+      }
       const local = ehComandaLocal(entrada.comandaId) ? entrada.comandaId : null;
       const guardar = async () => {
         if (!usuario) throw new Error("Sessão não identificada");

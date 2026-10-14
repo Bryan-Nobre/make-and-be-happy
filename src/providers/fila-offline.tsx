@@ -19,6 +19,7 @@ import {
   dependentesDe,
   deveSincronizar,
   estaPendente,
+  ligarAComanda,
   listarFila,
   removerAcao,
   salvarAcao,
@@ -26,7 +27,13 @@ import {
 } from "@/lib/offline/fila";
 import { useAuth } from "@/providers/auth";
 import { useEmpresa } from "@/providers/empresa";
-import { abrirComanda, criarPedido, listarMesasEstado } from "@/services/pedidos";
+import {
+  abrirComanda,
+  buscarComanda,
+  criarPedido,
+  listarMesasEstado,
+  pedirConta,
+} from "@/services/pedidos";
 
 type EstadoFila = {
   acoes: AcaoOffline[];
@@ -51,6 +58,21 @@ const MENSAGEM_MESA_JA_ABERTA =
   "A mesa foi aberta em outro aparelho. Decida em Pendências o que fazer com este pedido.";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/**
+ * `pedir_conta` não é idempotente no servidor. Se a recusa vier porque a conta
+ * já está pedida (ex.: a resposta do envio anterior se perdeu), o objetivo foi
+ * atingido e a ação conta como aceita.
+ */
+async function enviarPedidoDeConta(empresaId: string, comandaId: string) {
+  try {
+    await pedirConta(comandaId);
+  } catch (erro) {
+    if (classificarFalha(erro) !== "regra") throw erro;
+    const comanda = await buscarComanda(empresaId, comandaId).catch(() => null);
+    if (comanda?.status !== "PAYMENT_PENDING" && comanda?.status !== "PAID") throw erro;
+  }
+}
 
 /**
  * Envia ao servidor, em ordem, as ações feitas sem conexão. Cada envio repete o
@@ -102,12 +124,11 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
         let acao = atual.get(id);
         if (!acao || !deveSincronizar(acao)) continue;
 
-        // Pedido em mesa aberta offline: só sai depois que a abertura for aceita.
-        if (acao.tipo === "criar_pedido" && acao.entrada.comandaLocal) {
+        // Ação em mesa aberta offline: só sai depois que a abertura for aceita.
+        if (acao.tipo !== "abrir_comanda" && acao.entrada.comandaLocal) {
           const abertura = atual.get(acao.entrada.comandaLocal);
           if (abertura?.estado === "sincronizado" && abertura.resultadoId) {
-            const comandaId = abertura.resultadoId;
-            acao = { ...acao, entrada: { ...acao.entrada, comandaId, comandaLocal: null } };
+            acao = ligarAComanda(acao, abertura.resultadoId);
           } else {
             if (!abertura) {
               await salvar({
@@ -134,11 +155,13 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
             });
             await salvar({ ...acao, estado: "sincronizado", resultadoId: comandaId, erro: null });
             for (const dependente of dependentesDe([...atual.values()], acao.id)) {
-              await salvar({
-                ...dependente,
-                entrada: { ...dependente.entrada, comandaId, comandaLocal: null },
-              });
+              await salvar(ligarAComanda(dependente, comandaId));
             }
+          } else if (acao.tipo === "pedir_conta") {
+            const comandaId = acao.entrada.comandaId;
+            if (!comandaId) throw new Error("Pedido de conta sem comanda.");
+            await enviarPedidoDeConta(empresaId, comandaId);
+            await salvar({ ...acao, estado: "sincronizado", resultadoId: comandaId, erro: null });
           } else {
             const { comandaLocal: _, ...entrada } = acao.entrada;
             const pedidoId = await criarPedido(empresaId, { ...entrada, requisicaoId: acao.id });
@@ -184,6 +207,7 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
         for (const queryKey of [
           chaves.salao(empresaId),
           chaves.painelCozinha(empresaId),
+          chaves.caixa(empresaId),
           chaves.estoque(empresaId),
           chaves.dashboard(empresaId),
           chaves.clientes(empresaId),
@@ -279,8 +303,7 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
 
       for (const dependente of dependentesDe(acoes, aberturaId)) {
         await salvarAcao({
-          ...dependente,
-          entrada: { ...dependente.entrada, comandaId: mesa.comandaId, comandaLocal: null },
+          ...ligarAComanda(dependente, mesa.comandaId),
           estado: "pendente",
           tentativas: 0,
           erro: null,

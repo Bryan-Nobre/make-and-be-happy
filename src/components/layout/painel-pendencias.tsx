@@ -37,11 +37,14 @@ export function PainelPendencias() {
     const dependentes =
       acao.tipo === "abrir_comanda" ? dependentesDe(fila.acoes, acao.id).length : 0;
     confirmar({
-      titulo:
-        acao.tipo === "abrir_comanda" ? "Descartar a abertura da mesa?" : "Descartar este pedido?",
+      titulo: {
+        abrir_comanda: "Descartar a abertura da mesa?",
+        criar_pedido: "Descartar este pedido?",
+        pedir_conta: "Descartar o pedido de conta?",
+      }[acao.tipo],
       descricao:
         dependentes > 0
-          ? `Os ${dependentes} pedido(s) feitos nesta mesa também serão apagados deste aparelho. Esta ação não pode ser desfeita.`
+          ? `${dependentes === 1 ? "A ação feita" : `As ${dependentes} ações feitas`} nesta mesa também ${dependentes === 1 ? "será apagada" : "serão apagadas"} deste aparelho. Esta ação não pode ser desfeita.`
           : "Ainda não foi enviado ao servidor e será apagado deste aparelho. Esta ação não pode ser desfeita.",
       acao: "Descartar",
       aoConfirmar: () => fila.descartar(acao.id),
@@ -84,9 +87,9 @@ export function PainelPendencias() {
             const podeAgir = acao.estado === "erro" || acao.estado === "conflito";
             const horario = time(new Date(acao.criadoEm).toISOString());
             const ehAbertura = acao.tipo === "abrir_comanda";
-            // Pedido preso a uma abertura em conflito: a decisão é tomada na abertura.
+            // Ação presa a uma abertura em conflito: a decisão é tomada na abertura.
             const esperaAbertura =
-              acao.tipo === "criar_pedido" &&
+              acao.tipo !== "abrir_comanda" &&
               !!acao.entrada.comandaLocal &&
               fila.acoes.some((a) => a.id === acao.entrada.comandaLocal);
             return (
@@ -100,6 +103,13 @@ export function PainelPendencias() {
                           Feito às {horario} · {acao.resumo.pessoas} pessoa
                           {acao.resumo.pessoas > 1 ? "s" : ""}
                         </p>
+                      </>
+                    ) : acao.tipo === "pedir_conta" ? (
+                      <>
+                        <p className="truncate text-sm font-semibold">
+                          Pedir conta · {acao.resumo.mesa}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Feito às {horario}</p>
                       </>
                     ) : (
                       <>
@@ -131,7 +141,7 @@ export function PainelPendencias() {
                     }
                     onClick={() => fila.relancarNaComandaAberta(acao.id)}
                   >
-                    Lançar pedidos na comanda já aberta
+                    Lançar na comanda já aberta
                   </Button>
                 )}
                 {!esperaAbertura && (podeAgir || acao.estado === "pendente") && (
