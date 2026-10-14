@@ -1,9 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { chaves } from "@/lib/chaves";
+import { ErroDeRegra } from "@/lib/erros";
 import { estadoConexao } from "@/lib/offline/conectividade";
-import { ehFalhaDeRede, enfileirarPedido, type ResumoPedido } from "@/lib/offline/fila";
+import {
+  aberturaDaComandaLocal,
+  ehComandaLocal,
+  ehFalhaDeRede,
+  enfileirarAbertura,
+  enfileirarPedido,
+  idComandaLocal,
+  type AcaoAbertura,
+  type ResumoPedido,
+} from "@/lib/offline/fila";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/auth";
 import { useEmpresaAtual } from "@/providers/empresa";
@@ -90,13 +100,47 @@ export function useRealtimeCozinha() {
 // Consultas
 // ---------------------------------------------------------------------------
 
+/**
+ * Estado das mesas. Mesas abertas neste aparelho sem conexão aparecem como
+ * ocupadas, com `aberturaPendente`, enquanto o servidor ainda as vê livres.
+ * O dado do servidor nunca é alterado: a sobreposição existe só na tela.
+ */
 export function useMesasEstado() {
   const { empresa } = useEmpresaAtual();
+  const { acoes } = useFilaOffline();
+
+  const aberturas = useMemo(
+    () =>
+      acoes.filter(
+        (a): a is AcaoAbertura => a.tipo === "abrir_comanda" && a.estado !== "sincronizado",
+      ),
+    [acoes],
+  );
+
+  const sobrepor = useCallback(
+    (mesas: servico.MesaEstado[]) => {
+      if (aberturas.length === 0) return mesas;
+      return mesas.map((mesa) => {
+        const abertura = aberturas.find((a) => a.entrada.mesaId === mesa.id);
+        if (!abertura || mesa.status !== "LIVRE") return mesa;
+        return {
+          ...mesa,
+          status: "OCUPADA" as const,
+          comandaId: idComandaLocal(abertura.id),
+          pessoas: abertura.entrada.pessoas,
+          abertaEm: new Date(abertura.criadoEm).toISOString(),
+          aberturaPendente: true,
+        };
+      });
+    },
+    [aberturas],
+  );
 
   return useQuery({
     queryKey: chaves.mesasEstado(empresa.id),
     queryFn: () => servico.listarMesasEstado(empresa.id),
     refetchInterval: INTERVALO_RESERVA_MS,
+    select: sobrepor,
   });
 }
 
@@ -128,7 +172,7 @@ export function useComanda(comandaId: string | null) {
   return useQuery({
     queryKey: chaves.comanda(empresa.id, comandaId ?? ""),
     queryFn: () => servico.buscarComanda(empresa.id, comandaId ?? ""),
-    enabled: !!comandaId,
+    enabled: !!comandaId && !ehComandaLocal(comandaId),
   });
 }
 
@@ -138,7 +182,7 @@ export function usePedidosDaComanda(comandaId: string | null) {
   return useQuery({
     queryKey: chaves.pedidosDaComanda(empresa.id, comandaId ?? ""),
     queryFn: () => servico.listarPedidosDaComanda(empresa.id, comandaId ?? ""),
-    enabled: !!comandaId,
+    enabled: !!comandaId && !ehComandaLocal(comandaId),
   });
 }
 
@@ -158,12 +202,57 @@ export function usePainelCozinha(setorId?: string | null) {
 
 export function useComandaMutations() {
   const { empresa } = useEmpresaAtual();
+  const { usuario } = useAuth();
+  const fila = useFilaOffline();
   const invalidar = [chaves.salao(empresa.id)];
 
+  /**
+   * Sem conexão, a abertura vai para a fila e a resposta é um id provisório
+   * (`local:...`): a comanda só ganha id e número quando o servidor aceitar.
+   * Se outro aparelho abrir a mesa antes, a abertura vira conflito no envio.
+   */
   const abrir = useMutacao({
-    executar: (entrada: { mesaId: string; pessoas: number; requisicaoId: string }) =>
-      servico.abrirComanda(empresa.id, entrada),
-    sucesso: "Comanda aberta.",
+    executar: async (entrada: {
+      mesaId: string;
+      pessoas: number;
+      requisicaoId: string;
+      nomeMesa: string;
+    }): Promise<string> => {
+      const guardar = async () => {
+        if (!usuario) throw new Error("Sessão não identificada");
+        const jaPendente = fila.acoes.some(
+          (a) =>
+            a.tipo === "abrir_comanda" &&
+            a.entrada.mesaId === entrada.mesaId &&
+            a.estado !== "sincronizado",
+        );
+        if (jaPendente) {
+          throw new ErroDeRegra(`A ${entrada.nomeMesa} já foi aberta neste aparelho.`);
+        }
+        await enfileirarAbertura({
+          id: entrada.requisicaoId,
+          usuarioId: usuario.id,
+          empresaId: empresa.id,
+          entrada: { mesaId: entrada.mesaId, pessoas: entrada.pessoas },
+          resumo: { mesa: entrada.nomeMesa, pessoas: entrada.pessoas },
+        });
+        fila.recarregar();
+        fila.sincronizar();
+        return idComandaLocal(entrada.requisicaoId);
+      };
+
+      if (estadoConexao() === "OFFLINE" || !navigator.onLine) return guardar();
+      try {
+        return await servico.abrirComanda(empresa.id, entrada);
+      } catch (erro) {
+        if (ehFalhaDeRede(erro)) return guardar();
+        throw erro;
+      }
+    },
+    sucesso: (comandaId) =>
+      ehComandaLocal(comandaId)
+        ? "Sem conexão: mesa aberta neste aparelho. Será enviada quando a internet voltar."
+        : "Comanda aberta.",
     invalidar,
   });
 
@@ -237,6 +326,7 @@ export function usePedidoMutations() {
       requisicaoId: string;
       resumo: ResumoPedido;
     }): Promise<string | null> => {
+      const local = ehComandaLocal(entrada.comandaId) ? entrada.comandaId : null;
       const guardar = async () => {
         if (!usuario) throw new Error("Sessão não identificada");
         await enfileirarPedido({
@@ -244,7 +334,8 @@ export function usePedidoMutations() {
           usuarioId: usuario.id,
           empresaId: empresa.id,
           entrada: {
-            comandaId: entrada.comandaId,
+            comandaId: local ? null : entrada.comandaId,
+            comandaLocal: local ? aberturaDaComandaLocal(local) : null,
             clienteId: entrada.clienteId ?? null,
             itens: entrada.itens,
             desconto: entrada.desconto,
@@ -256,7 +347,8 @@ export function usePedidoMutations() {
         return null;
       };
 
-      if (estadoConexao() === "OFFLINE" || !navigator.onLine) return guardar();
+      // Comanda aberta offline ainda não existe no servidor: o pedido espera a abertura.
+      if (local || estadoConexao() === "OFFLINE" || !navigator.onLine) return guardar();
       try {
         return await servico.criarPedido(empresa.id, entrada);
       } catch (erro) {

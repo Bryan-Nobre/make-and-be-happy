@@ -16,6 +16,7 @@ import { mensagemDeErro } from "@/lib/erros";
 import { estadoConexao, useConexao } from "@/lib/offline/conectividade";
 import {
   classificarFalha,
+  dependentesDe,
   deveSincronizar,
   estaPendente,
   listarFila,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/offline/fila";
 import { useAuth } from "@/providers/auth";
 import { useEmpresa } from "@/providers/empresa";
-import { criarPedido } from "@/services/pedidos";
+import { abrirComanda, criarPedido, listarMesasEstado } from "@/services/pedidos";
 
 type EstadoFila = {
   acoes: AcaoOffline[];
@@ -37,12 +38,17 @@ type EstadoFila = {
   sincronizar: () => void;
   recarregar: () => void;
   tentarDeNovo: (id: string) => void;
+  /** Descarta a ação; numa abertura de mesa, leva junto os pedidos dela. */
   descartar: (id: string) => void;
+  /** Abertura recusada porque a mesa já estava aberta: lança os pedidos na comanda existente. */
+  relancarNaComandaAberta: (aberturaId: string) => void;
 };
 
 const FilaContext = createContext<EstadoFila | null>(null);
 
 const INTERVALO_MS = 30_000;
+const MENSAGEM_MESA_JA_ABERTA =
+  "A mesa foi aberta em outro aparelho. Decida em Pendências o que fazer com este pedido.";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -83,27 +89,78 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
 
     const processar = async () => {
       const resultado = { aceitas: 0, recusadas: 0 };
-      for (const acao of await listarFila(usuarioId, empresaId)) {
-        if (!deveSincronizar(acao)) continue;
+      const fila = await listarFila(usuarioId, empresaId);
+      // Versão mais recente de cada ação: pedidos são reescritos quando a
+      // abertura da mesa deles é aceita ou recusada neste mesmo ciclo.
+      const atual = new Map(fila.map((a) => [a.id, a]));
+      const salvar = async (acao: AcaoOffline) => {
+        atual.set(acao.id, acao);
+        await salvarAcao(acao);
+      };
 
-        await salvarAcao({ ...acao, estado: "sincronizando" });
+      for (const { id } of fila) {
+        let acao = atual.get(id);
+        if (!acao || !deveSincronizar(acao)) continue;
+
+        // Pedido em mesa aberta offline: só sai depois que a abertura for aceita.
+        if (acao.tipo === "criar_pedido" && acao.entrada.comandaLocal) {
+          const abertura = atual.get(acao.entrada.comandaLocal);
+          if (abertura?.estado === "sincronizado" && abertura.resultadoId) {
+            const comandaId = abertura.resultadoId;
+            acao = { ...acao, entrada: { ...acao.entrada, comandaId, comandaLocal: null } };
+          } else {
+            if (!abertura) {
+              await salvar({
+                ...acao,
+                estado: "conflito",
+                erro: "A abertura desta mesa foi descartada.",
+              });
+              resultado.recusadas += 1;
+            } else if (abertura.estado === "conflito") {
+              await salvar({ ...acao, estado: "conflito", erro: MENSAGEM_MESA_JA_ABERTA });
+            }
+            continue;
+          }
+        }
+
+        await salvar({ ...acao, estado: "sincronizando" });
         void recarregar();
 
         try {
-          const id = await criarPedido(empresaId, { ...acao.entrada, requisicaoId: acao.id });
-          await salvarAcao({ ...acao, estado: "sincronizado", resultadoId: id, erro: null });
+          if (acao.tipo === "abrir_comanda") {
+            const comandaId = await abrirComanda(empresaId, {
+              ...acao.entrada,
+              requisicaoId: acao.id,
+            });
+            await salvar({ ...acao, estado: "sincronizado", resultadoId: comandaId, erro: null });
+            for (const dependente of dependentesDe([...atual.values()], acao.id)) {
+              await salvar({
+                ...dependente,
+                entrada: { ...dependente.entrada, comandaId, comandaLocal: null },
+              });
+            }
+          } else {
+            const { comandaLocal: _, ...entrada } = acao.entrada;
+            const pedidoId = await criarPedido(empresaId, { ...entrada, requisicaoId: acao.id });
+            await salvar({ ...acao, estado: "sincronizado", resultadoId: pedidoId, erro: null });
+          }
           resultado.aceitas += 1;
         } catch (erro) {
           const tipo = classificarFalha(erro);
           if (tipo === "rede" || tipo === "sessao") {
             // Nada foi decidido: volta para a fila e tenta na próxima conexão.
-            await salvarAcao({ ...acao, estado: "pendente" });
+            await salvar({ ...acao, estado: "pendente" });
             break;
           }
           if (tipo === "regra") {
-            await salvarAcao({ ...acao, estado: "conflito", erro: mensagemDeErro(erro) });
+            await salvar({ ...acao, estado: "conflito", erro: mensagemDeErro(erro) });
+            if (acao.tipo === "abrir_comanda") {
+              for (const dependente of dependentesDe([...atual.values()], acao.id)) {
+                await salvar({ ...dependente, estado: "conflito", erro: MENSAGEM_MESA_JA_ABERTA });
+              }
+            }
           } else {
-            await salvarAcao({
+            await salvar({
               ...acao,
               estado: "erro",
               tentativas: acao.tentativas + 1,
@@ -134,12 +191,12 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
           void queryClient.invalidateQueries({ queryKey });
         }
         toast.success(
-          `${plural(aceitas, "pedido feito offline foi enviado", "pedidos feitos offline foram enviados")}.`,
+          `${plural(aceitas, "ação feita offline foi enviada", "ações feitas offline foram enviadas")}.`,
         );
       }
       if (recusadas > 0) {
         toast.error(
-          `${plural(recusadas, "pedido offline não foi aceito", "pedidos offline não foram aceitos")}. Veja em Pendências.`,
+          `${plural(recusadas, "ação offline não foi aceita", "ações offline não foram aceitas")}. Veja em Pendências.`,
         );
       }
     } finally {
@@ -170,6 +227,11 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
       const acao = acoes.find((a) => a.id === id);
       if (!acao) return;
       await salvarAcao({ ...acao, estado: "pendente", tentativas: 0, erro: null });
+      if (acao.tipo === "abrir_comanda") {
+        for (const dependente of dependentesDe(acoes, acao.id)) {
+          await salvarAcao({ ...dependente, estado: "pendente", tentativas: 0, erro: null });
+        }
+      }
       await recarregar();
       void sincronizar();
     },
@@ -180,10 +242,56 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const acao = acoes.find((a) => a.id === id);
       if (!acao || acao.estado === "sincronizando") return;
+      if (acao.tipo === "abrir_comanda") {
+        for (const dependente of dependentesDe(acoes, acao.id)) await removerAcao(dependente);
+      }
       await removerAcao(acao);
       await recarregar();
     },
     [acoes, recarregar],
+  );
+
+  const relancarNaComandaAberta = useCallback(
+    async (aberturaId: string) => {
+      const abertura = acoes.find((a) => a.id === aberturaId);
+      if (!abertura || abertura.tipo !== "abrir_comanda" || !empresaId) return;
+
+      let mesas;
+      try {
+        // Busca o estado atual no servidor: o cache pode estar desatualizado.
+        mesas = await queryClient.fetchQuery({
+          queryKey: chaves.mesasEstado(empresaId),
+          queryFn: () => listarMesasEstado(empresaId),
+          staleTime: 0,
+        });
+      } catch {
+        toast.error("Sem conexão para conferir a mesa. Tente quando a internet voltar.");
+        return;
+      }
+
+      const mesa = mesas.find((m) => m.id === abertura.entrada.mesaId);
+      if (!mesa?.comandaId) {
+        toast.error(`A ${abertura.resumo.mesa} não tem comanda aberta agora.`, {
+          description: "Use “Tentar de novo” para abrir a mesa ou descarte os pedidos.",
+        });
+        return;
+      }
+
+      for (const dependente of dependentesDe(acoes, aberturaId)) {
+        await salvarAcao({
+          ...dependente,
+          entrada: { ...dependente.entrada, comandaId: mesa.comandaId, comandaLocal: null },
+          estado: "pendente",
+          tentativas: 0,
+          erro: null,
+        });
+      }
+      await removerAcao(abertura);
+      toast.success(`Os pedidos serão lançados na comanda já aberta da ${mesa.nome}.`);
+      await recarregar();
+      void sincronizar();
+    },
+    [acoes, empresaId, queryClient, recarregar, sincronizar],
   );
 
   const valor = useMemo<EstadoFila>(
@@ -196,8 +304,17 @@ export function FilaOfflineProvider({ children }: { children: ReactNode }) {
       recarregar: () => void recarregar(),
       tentarDeNovo: (id) => void tentarDeNovo(id),
       descartar: (id) => void descartar(id),
+      relancarNaComandaAberta: (id) => void relancarNaComandaAberta(id),
     }),
-    [acoes, sincronizando, sincronizar, recarregar, tentarDeNovo, descartar],
+    [
+      acoes,
+      sincronizando,
+      sincronizar,
+      recarregar,
+      tentarDeNovo,
+      descartar,
+      relancarNaComandaAberta,
+    ],
   );
 
   return <FilaContext value={valor}>{children}</FilaContext>;

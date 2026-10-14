@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { brl, time } from "@/lib/format";
 import { useConexao } from "@/lib/offline/conectividade";
-import type { AcaoOffline, EstadoAcao } from "@/lib/offline/fila";
+import { dependentesDe, type AcaoOffline, type EstadoAcao } from "@/lib/offline/fila";
 import { cn } from "@/lib/utils";
 import { useFilaOffline } from "@/providers/fila-offline";
 
@@ -33,14 +33,20 @@ export function PainelPendencias() {
 
   if (fila.acoes.length === 0) return null;
 
-  const descartar = (acao: AcaoOffline) =>
+  const descartar = (acao: AcaoOffline) => {
+    const dependentes =
+      acao.tipo === "abrir_comanda" ? dependentesDe(fila.acoes, acao.id).length : 0;
     confirmar({
-      titulo: "Descartar este pedido?",
+      titulo:
+        acao.tipo === "abrir_comanda" ? "Descartar a abertura da mesa?" : "Descartar este pedido?",
       descricao:
-        "Ele ainda não foi enviado ao servidor e será apagado deste aparelho. Esta ação não pode ser desfeita.",
+        dependentes > 0
+          ? `Os ${dependentes} pedido(s) feitos nesta mesa também serão apagados deste aparelho. Esta ação não pode ser desfeita.`
+          : "Ainda não foi enviado ao servidor e será apagado deste aparelho. Esta ação não pode ser desfeita.",
       acao: "Descartar",
       aoConfirmar: () => fila.descartar(acao.id),
     });
+  };
 
   return (
     <Sheet>
@@ -67,7 +73,7 @@ export function PainelPendencias() {
         <SheetHeader className="border-b p-4">
           <SheetTitle>Pendências offline</SheetTitle>
           <SheetDescription>
-            Pedidos feitos sem conexão. Só valem depois que o servidor aceita: preço, estoque e
+            Ações feitas sem conexão. Só valem depois que o servidor aceita: mesa, preço, estoque e
             comanda são conferidos no envio.
           </SheetDescription>
         </SheetHeader>
@@ -76,27 +82,59 @@ export function PainelPendencias() {
           {fila.acoes.map((acao) => {
             const estado = ESTADO[acao.estado];
             const podeAgir = acao.estado === "erro" || acao.estado === "conflito";
+            const horario = time(new Date(acao.criadoEm).toISOString());
+            const ehAbertura = acao.tipo === "abrir_comanda";
+            // Pedido preso a uma abertura em conflito: a decisão é tomada na abertura.
+            const esperaAbertura =
+              acao.tipo === "criar_pedido" &&
+              !!acao.entrada.comandaLocal &&
+              fila.acoes.some((a) => a.id === acao.entrada.comandaLocal);
             return (
-              <li key={acao.id} className="space-y-2 p-4">
+              <li key={acao.id} className={cn("space-y-2 p-4", esperaAbertura && "pl-8")}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{acao.resumo.destino}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Feito às {time(new Date(acao.criadoEm).toISOString())} · previsto{" "}
-                      {brl(acao.resumo.totalPrevisto)}
-                    </p>
+                    {acao.tipo === "abrir_comanda" ? (
+                      <>
+                        <p className="truncate text-sm font-semibold">Abrir {acao.resumo.mesa}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Feito às {horario} · {acao.resumo.pessoas} pessoa
+                          {acao.resumo.pessoas > 1 ? "s" : ""}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="truncate text-sm font-semibold">{acao.resumo.destino}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Feito às {horario} · previsto {brl(acao.resumo.totalPrevisto)}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <StatusBadge tone={estado.tom}>{estado.rotulo}</StatusBadge>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {acao.resumo.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", ")}
-                </p>
+                {acao.tipo === "criar_pedido" && (
+                  <p className="text-xs text-muted-foreground">
+                    {acao.resumo.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", ")}
+                  </p>
+                )}
                 {acao.erro && (
                   <p className="rounded-md bg-destructive-soft px-2.5 py-1.5 text-xs text-destructive">
                     {acao.erro}
                   </p>
                 )}
-                {(podeAgir || acao.estado === "pendente") && (
+                {ehAbertura && acao.estado === "conflito" && (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={
+                      conexao !== "ONLINE" || dependentesDe(fila.acoes, acao.id).length === 0
+                    }
+                    onClick={() => fila.relancarNaComandaAberta(acao.id)}
+                  >
+                    Lançar pedidos na comanda já aberta
+                  </Button>
+                )}
+                {!esperaAbertura && (podeAgir || acao.estado === "pendente") && (
                   <div className="flex gap-2">
                     {podeAgir && (
                       <Button

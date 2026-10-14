@@ -104,7 +104,7 @@ function useSair() {
     // Sair apaga os dados locais, e com eles os pedidos ainda não enviados.
     if (pendentes > 0) {
       toast.error(
-        `Há ${pendentes} pedido${pendentes > 1 ? "s" : ""} feito${pendentes > 1 ? "s" : ""} offline ainda não enviado${pendentes > 1 ? "s" : ""}.`,
+        `Há ${pendentes} ${pendentes > 1 ? "ações feitas" : "ação feita"} offline ainda não ${pendentes > 1 ? "enviadas" : "enviada"}.`,
         { description: "Sincronize ou descarte em Pendências antes de sair." },
       );
       return;

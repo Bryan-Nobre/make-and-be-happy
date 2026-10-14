@@ -1,4 +1,4 @@
-import { Check, ChefHat, Users } from "lucide-react";
+import { Check, ChefHat, CloudOff, Users } from "lucide-react";
 
 import { brl, elapsed } from "@/lib/format";
 import { STATUS_MESA } from "@/lib/labels";
@@ -106,6 +106,15 @@ function MesaNoMapa({
             destacada && "ring-2 ring-primary ring-offset-2 ring-offset-background",
           )}
         >
+          {mesa.aberturaPendente && (
+            <span
+              className="absolute -top-2 -left-2 flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm"
+              title="Abertura pendente: aguardando envio"
+            >
+              <CloudOff className="size-3" aria-hidden="true" />
+              <span className="sr-only">Abertura pendente</span>
+            </span>
+          )}
           {mesa.pedidosEmProducao > 0 && (
             <span
               className="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full border border-border bg-card px-1.5 text-[11px] font-medium text-muted-foreground shadow-sm"
@@ -230,9 +239,11 @@ export function ListaMesas({
                 <span className="block truncate text-xs text-muted-foreground tabular-nums">
                   {livre
                     ? "Livre"
-                    : [m.pessoas ? pessoasTexto(m.pessoas) : null, brl(valorDaMesa(m))]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    : m.aberturaPendente
+                      ? "Abertura pendente"
+                      : [m.pessoas ? pessoasTexto(m.pessoas) : null, brl(valorDaMesa(m))]
+                          .filter(Boolean)
+                          .join(" · ")}
                 </span>
               </span>
               {!livre && m.abertaEm && (

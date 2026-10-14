@@ -16,6 +16,11 @@ export type EstadoAcao = "pendente" | "sincronizando" | "sincronizado" | "erro" 
 
 export type EntradaPedidoOffline = {
   comandaId: string | null;
+  /**
+   * Abertura de mesa feita offline da qual o pedido depende (id da ação). A
+   * comanda só ganha id no servidor; no envio ele substitui esta referência.
+   */
+  comandaLocal?: string | null;
   clienteId: string | null;
   itens: ItemNovo[];
   desconto: number;
@@ -28,14 +33,14 @@ export type ResumoPedido = {
   totalPrevisto: number;
 };
 
-export type AcaoOffline = {
+export type EntradaAberturaOffline = { mesaId: string; pessoas: number };
+export type ResumoAbertura = { mesa: string; pessoas: number };
+
+type Base = {
   schemaVersion: number;
   id: string;
   usuarioId: string;
   empresaId: string;
-  tipo: "criar_pedido";
-  entrada: EntradaPedidoOffline;
-  resumo: ResumoPedido;
   estado: EstadoAcao;
   tentativas: number;
   criadoEm: number;
@@ -45,6 +50,27 @@ export type AcaoOffline = {
   /** Id do registro criado no servidor. */
   resultadoId: string | null;
 };
+
+export type AcaoPedido = Base & {
+  tipo: "criar_pedido";
+  entrada: EntradaPedidoOffline;
+  resumo: ResumoPedido;
+};
+
+export type AcaoAbertura = Base & {
+  tipo: "abrir_comanda";
+  entrada: EntradaAberturaOffline;
+  resumo: ResumoAbertura;
+};
+
+export type AcaoOffline = AcaoPedido | AcaoAbertura;
+
+/** Comanda aberta offline ainda sem id no servidor. */
+const PREFIXO_LOCAL = "local:";
+export const idComandaLocal = (aberturaId: string) => `${PREFIXO_LOCAL}${aberturaId}`;
+export const ehComandaLocal = (comandaId: string | null | undefined): comandaId is string =>
+  typeof comandaId === "string" && comandaId.startsWith(PREFIXO_LOCAL);
+export const aberturaDaComandaLocal = (comandaId: string) => comandaId.slice(PREFIXO_LOCAL.length);
 
 /** Falhas técnicas seguidas antes de parar de tentar sozinho. */
 export const MAXIMO_TENTATIVAS = 5;
@@ -63,17 +89,10 @@ export function removerAcao(acao: AcaoOffline): Promise<void> {
   return remover("fila", chave(acao));
 }
 
-export async function enfileirarPedido(dados: {
-  id: string;
-  usuarioId: string;
-  empresaId: string;
-  entrada: EntradaPedidoOffline;
-  resumo: ResumoPedido;
-}): Promise<void> {
+const novaBase = (dados: { id: string; usuarioId: string; empresaId: string }): Base => {
   const agora = Date.now();
-  await salvarAcao({
+  return {
     schemaVersion: SCHEMA_VERSION,
-    tipo: "criar_pedido",
     estado: "pendente",
     tentativas: 0,
     criadoEm: agora,
@@ -81,8 +100,30 @@ export async function enfileirarPedido(dados: {
     erro: null,
     resultadoId: null,
     ...dados,
-  });
+  };
+};
+
+type Escopo = { id: string; usuarioId: string; empresaId: string };
+
+export function enfileirarPedido(
+  dados: Escopo & { entrada: EntradaPedidoOffline; resumo: ResumoPedido },
+): Promise<void> {
+  const { entrada, resumo, ...escopo } = dados;
+  return salvarAcao({ ...novaBase(escopo), tipo: "criar_pedido", entrada, resumo });
 }
+
+export function enfileirarAbertura(
+  dados: Escopo & { entrada: EntradaAberturaOffline; resumo: ResumoAbertura },
+): Promise<void> {
+  const { entrada, resumo, ...escopo } = dados;
+  return salvarAcao({ ...novaBase(escopo), tipo: "abrir_comanda", entrada, resumo });
+}
+
+/** Pedidos que esperam a abertura de mesa informada. */
+export const dependentesDe = (acoes: AcaoOffline[], aberturaId: string) =>
+  acoes.filter(
+    (a): a is AcaoPedido => a.tipo === "criar_pedido" && a.entrada.comandaLocal === aberturaId,
+  );
 
 /** Ações do escopo, da mais antiga para a mais nova. Remove as já sincronizadas há algum tempo. */
 export async function listarFila(usuarioId: string, empresaId: string): Promise<AcaoOffline[]> {

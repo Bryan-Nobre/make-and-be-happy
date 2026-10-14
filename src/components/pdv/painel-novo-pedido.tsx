@@ -36,6 +36,10 @@ const MODOS: { id: ModoDestino; label: string; icone: typeof Store }[] = [
   { id: "COMANDA", label: "Comanda", icone: Ticket },
 ];
 
+function rotuloComanda(m: Pick<MesaEstado, "comandaNumero" | "aberturaPendente">) {
+  return m.aberturaPendente ? "Abertura pendente" : `Comanda #${m.comandaNumero}`;
+}
+
 export function PainelNovoPedido({
   novo,
   caixaAberto,
@@ -115,7 +119,7 @@ export function PainelNovoPedido({
               </option>
               {novo.mesasComComanda.map((m) => (
                 <option key={m.id} value={m.comandaId ?? ""}>
-                  Comanda #{m.comandaNumero} · {m.nome}
+                  {rotuloComanda(m)} · {m.nome}
                 </option>
               ))}
             </NativeSelect>
@@ -263,7 +267,7 @@ function EscolhaDeMesa({ novo }: { novo: NovoPedido }) {
   const confirmarAbertura = () => {
     if (!abrindo) return;
     abrir.mutate(
-      { mesaId: abrindo.id, pessoas, requisicaoId },
+      { mesaId: abrindo.id, pessoas, requisicaoId, nomeMesa: abrindo.nome },
       {
         onSuccess: (comandaId) => {
           setAbrindo(null);
@@ -311,7 +315,7 @@ function EscolhaDeMesa({ novo }: { novo: NovoPedido }) {
                   {m.status === "LIVRE"
                     ? "Livre"
                     : m.status === "OCUPADA"
-                      ? `Comanda #${m.comandaNumero}`
+                      ? rotuloComanda(m)
                       : "Conta pedida"}
                 </span>
               </button>
@@ -347,7 +351,7 @@ function EscolhaDeMesa({ novo }: { novo: NovoPedido }) {
       {novo.destino && (
         <p className="text-sm text-muted-foreground">
           Lançando na <span className="font-medium text-foreground">{novo.destino.nome}</span> ·
-          Comanda #{novo.destino.comandaNumero}
+          {rotuloComanda(novo.destino)}
         </p>
       )}
     </div>

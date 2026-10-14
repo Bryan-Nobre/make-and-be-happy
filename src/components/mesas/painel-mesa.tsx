@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChefHat, CloudOff, Minus, Plus, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { useConfirmacao } from "@/components/shared/confirmacao";
 import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -31,7 +32,13 @@ import {
 } from "@/hooks/use-pedidos";
 import { brl, elapsed } from "@/lib/format";
 import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
-import type { AcaoOffline, EstadoAcao } from "@/lib/offline/fila";
+import { useConexao } from "@/lib/offline/conectividade";
+import {
+  aberturaDaComandaLocal,
+  dependentesDe,
+  type AcaoPedido,
+  type EstadoAcao,
+} from "@/lib/offline/fila";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
@@ -53,19 +60,27 @@ export function PainelMesa({
   aoTrocarMesa: (mesaId: string) => void;
   aoFechar: () => void;
 }) {
-  const temComanda = mesa.comandaId !== null && mesa.comandaNumero !== null;
+  const provisoria = mesa.aberturaPendente === true;
+  const temComanda = mesa.comandaId !== null && (mesa.comandaNumero !== null || provisoria);
 
   return (
     <>
       <DialogHeader className="gap-1 border-b border-dashed border-border px-6 pt-6 pb-5 text-left">
-        {temComanda && (
+        {provisoria ? (
           <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            <span
-              aria-hidden="true"
-              className={cn("size-2 rounded-full", VISUAL_MESA[mesa.status].ponto)}
-            />
-            {nomeComanda(mesa.comandaNumero ?? 0)}
+            <CloudOff className="size-3.5" aria-hidden="true" />
+            Abertura pendente
           </p>
+        ) : (
+          temComanda && (
+            <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              <span
+                aria-hidden="true"
+                className={cn("size-2 rounded-full", VISUAL_MESA[mesa.status].ponto)}
+              />
+              {nomeComanda(mesa.comandaNumero ?? 0)}
+            </p>
+          )
         )}
         <DialogTitle className="text-2xl font-bold tracking-tight uppercase">
           {mesa.nome}
@@ -92,7 +107,9 @@ export function PainelMesa({
           )}
         </DialogDescription>
       </DialogHeader>
-      {mesa.comandaId ? (
+      {provisoria && mesa.comandaId ? (
+        <ComandaProvisoria comandaId={mesa.comandaId} />
+      ) : mesa.comandaId ? (
         <DetalheComanda
           comandaId={mesa.comandaId}
           mesa={mesa}
@@ -129,7 +146,7 @@ function AbrirComanda({ mesa }: { mesa: MesaEstado }) {
       className="flex min-h-0 flex-col"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valido) abrir.mutate({ mesaId: mesa.id, pessoas, requisicaoId });
+        if (valido) abrir.mutate({ mesaId: mesa.id, pessoas, requisicaoId, nomeMesa: mesa.nome });
       }}
     >
       <Corpo>
@@ -235,7 +252,7 @@ const ESTADO_ENVIO: Record<EstadoAcao, { rotulo: string; tom: Tone }> = {
  * Pedidos desta comanda feitos sem conexão e ainda não aceitos pelo servidor.
  * Ficam fora do total: o valor oficial só existe depois que o banco recalcula.
  */
-function PedidosAguardandoEnvio({ acoes }: { acoes: AcaoOffline[] }) {
+function PedidosAguardandoEnvio({ acoes }: { acoes: AcaoPedido[] }) {
   if (acoes.length === 0) return null;
 
   return (
@@ -277,6 +294,114 @@ function PedidosAguardandoEnvio({ acoes }: { acoes: AcaoOffline[] }) {
         Ainda não estão na cozinha nem no total. São enviados quando a internet voltar.
       </p>
     </section>
+  );
+}
+
+/**
+ * Mesa aberta neste aparelho sem conexão. A comanda ainda não existe no
+ * servidor, então só é possível lançar pedidos; o resto espera o envio.
+ */
+function ComandaProvisoria({ comandaId }: { comandaId: string }) {
+  const fila = useFilaOffline();
+  const conexao = useConexao();
+  const { confirmar, dialogo } = useConfirmacao();
+
+  const aberturaId = aberturaDaComandaLocal(comandaId);
+  const abertura = fila.acoes.find((a) => a.id === aberturaId);
+  const pedidos = dependentesDe(fila.acoes, aberturaId).filter((a) => a.estado !== "sincronizado");
+  const conflito = abertura?.estado === "conflito";
+
+  const descartar = () =>
+    confirmar({
+      titulo: "Descartar a abertura desta mesa?",
+      descricao:
+        pedidos.length > 0
+          ? `Os ${pedidos.length} pedido(s) feitos nela também serão apagados deste aparelho. Esta ação não pode ser desfeita.`
+          : "A abertura será apagada deste aparelho. Esta ação não pode ser desfeita.",
+      acao: "Descartar",
+      aoConfirmar: () => fila.descartar(aberturaId),
+    });
+
+  return (
+    <>
+      <Corpo>
+        {conflito ? (
+          <div className="space-y-1 rounded-lg border border-warning/40 bg-warning-soft p-3 text-sm">
+            <p className="font-semibold text-foreground">{abertura.erro}</p>
+            <p className="text-muted-foreground">
+              Outro aparelho abriu esta mesa antes do envio. Lance os pedidos na comanda que já está
+              aberta, tente abrir de novo ou descarte.
+            </p>
+          </div>
+        ) : (
+          <p className="rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
+            Mesa aberta sem conexão. Número da comanda, cozinha e total aparecem depois que o
+            servidor aceitar o envio.
+          </p>
+        )}
+        {pedidos.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            Nenhum pedido lançado.
+          </p>
+        ) : (
+          <PedidosAguardandoEnvio acoes={pedidos} />
+        )}
+      </Corpo>
+
+      <Rodape>
+        {conflito ? (
+          <>
+            <Button
+              size="operational"
+              className="w-full"
+              disabled={conexao !== "ONLINE" || pedidos.length === 0}
+              onClick={() => fila.relancarNaComandaAberta(aberturaId)}
+            >
+              Lançar na comanda já aberta
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="h-11"
+                disabled={conexao !== "ONLINE"}
+                onClick={() => fila.tentarDeNovo(aberturaId)}
+              >
+                Tentar abrir de novo
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-11 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                onClick={descartar}
+              >
+                Descartar
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Button asChild size="operational" className="w-full">
+              <Link to="/pedidos" search={{ comanda: comandaId }}>
+                Adicionar pedido
+              </Link>
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Pedir conta, transferir e liberar ficam disponíveis depois do envio.
+            </p>
+            {abertura?.estado !== "sincronizando" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mx-auto flex text-muted-foreground"
+                onClick={descartar}
+              >
+                Descartar abertura
+              </Button>
+            )}
+          </>
+        )}
+      </Rodape>
+      {dialogo}
+    </>
   );
 }
 
@@ -342,7 +467,8 @@ function DetalheComanda({
   const aguardandoPagamento = c.status === "PAYMENT_PENDING" || c.status === "PAID";
   const itens = consolidarItens(pedidos.data);
   const aguardandoEnvio = fila.acoes.filter(
-    (a) => a.entrada.comandaId === comandaId && a.estado !== "sincronizado",
+    (a): a is AcaoPedido =>
+      a.tipo === "criar_pedido" && a.entrada.comandaId === comandaId && a.estado !== "sincronizado",
   );
 
   return (

@@ -21,6 +21,8 @@ export type MesaEstado = {
   total: number;
   valorPago: number;
   pedidosEmProducao: number;
+  /** Aberta neste aparelho sem conexão e ainda não aceita pelo servidor. Só existe no cliente. */
+  aberturaPendente?: boolean;
 };
 
 export type ComandaResumo = {
