@@ -83,6 +83,8 @@ export type TicketCozinha = {
   nomeMesa: string | null;
   comandaNumero: number | null;
   observacoes: string | null;
+  /** Nome para chamar no balcão. */
+  identificacao: string | null;
   /** Momento em que o pedido entrou na fila da cozinha. */
   enviadoEm: string;
   itens: ItemCozinha[];
@@ -117,6 +119,7 @@ export type PedidoDoDia = {
   nomeMesa: string | null;
   comandaNumero: number | null;
   nomeCliente: string | null;
+  identificacao: string | null;
   quantidadeItens: number;
 };
 
@@ -129,7 +132,7 @@ export async function listarPedidosDesde(
   const { data, error } = await supabase
     .from("pedidos")
     .select(
-      "id, numero, origem, status_operacional, status_financeiro, subtotal, total, criado_em, comanda:comandas!pedidos_comanda_fk(numero, mesa_id, mesa:mesas!comandas_mesa_fk(nome)), cliente:clientes!pedidos_cliente_fk(nome), itens_pedido(quantidade)",
+      "id, numero, origem, status_operacional, status_financeiro, subtotal, total, criado_em, identificacao, comanda:comandas!pedidos_comanda_fk(numero, mesa_id, mesa:mesas!comandas_mesa_fk(nome)), cliente:clientes!pedidos_cliente_fk(nome), itens_pedido(quantidade)",
     )
     .eq("empresa_id", empresaId)
     .neq("status_operacional", "DRAFT")
@@ -151,6 +154,7 @@ export async function listarPedidosDesde(
     nomeMesa: p.comanda?.mesa?.nome ?? null,
     comandaNumero: p.comanda?.numero ?? null,
     nomeCliente: p.cliente?.nome ?? null,
+    identificacao: p.identificacao,
     quantidadeItens: p.itens_pedido.reduce((soma, i) => soma + Number(i.quantidade), 0),
   }));
 }
@@ -175,6 +179,7 @@ export type PedidoDetalhado = {
   mesaId: string | null;
   nomeMesa: string | null;
   nomeCliente: string | null;
+  identificacao: string | null;
   itens: ItemDoPedido[];
 };
 
@@ -186,7 +191,7 @@ export async function buscarPedido(
     .from("pedidos")
     .select(
       `id, numero, origem, status_operacional, status_financeiro, subtotal, desconto, acrescimo,
-       total, valor_pago, observacoes, criado_em, comanda_id,
+       total, valor_pago, observacoes, identificacao, criado_em, comanda_id,
        comanda:comandas!pedidos_comanda_fk(numero, status, pessoas, mesa_id, mesa:mesas!comandas_mesa_fk(nome)),
        cliente:clientes!pedidos_cliente_fk(nome),
        itens_pedido(id, nome_produto, quantidade, total, observacoes, criado_em,
@@ -220,6 +225,7 @@ export async function buscarPedido(
     mesaId: data.comanda?.mesa_id ?? null,
     nomeMesa: data.comanda?.mesa?.nome ?? null,
     nomeCliente: data.cliente?.nome ?? null,
+    identificacao: data.identificacao,
     itens: data.itens_pedido.map((i) => ({
       id: i.id,
       nomeProduto: i.nome_produto,
@@ -417,6 +423,8 @@ export async function criarPedido(
   entrada: {
     comandaId: string | null;
     clienteId?: string | null;
+    /** Nome para chamar; só vale no balcão (o banco recusa em mesa). */
+    identificacao?: string | null;
     itens: ItemNovo[];
     desconto: number;
     requisicaoId: string;
@@ -438,6 +446,7 @@ export async function criarPedido(
     p_desconto: entrada.desconto,
     p_client_request_id: entrada.requisicaoId,
     p_cliente: entrada.clienteId ?? undefined,
+    p_identificacao: entrada.comandaId ? undefined : entrada.identificacao?.trim() || undefined,
   });
 
   if (error) throw error;
@@ -498,6 +507,7 @@ export async function listarPainelCozinha(
         nomeMesa: linha.nome_mesa as string | null,
         comandaNumero: linha.comanda_numero as number | null,
         observacoes: linha.observacoes_pedido as string | null,
+        identificacao: linha.identificacao as string | null,
         enviadoEm: confirmadoEm ?? linha.criado_em,
         itens: [],
       };

@@ -22,6 +22,8 @@ export type EntradaPedidoOffline = {
    */
   comandaLocal?: string | null;
   clienteId: string | null;
+  /** Nome para chamar no balcão. Ausente em ações gravadas antes do campo existir. */
+  identificacao?: string | null;
   itens: ItemNovo[];
   desconto: number;
 };

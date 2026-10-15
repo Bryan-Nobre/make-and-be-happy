@@ -66,6 +66,7 @@ export type PedidoAReceber = {
   total: number;
   valorPago: number;
   criadoEm: string;
+  identificacao: string | null;
 };
 
 export type PendenciasCaixa = { pedidos: number; comandas: number; valor: number };
@@ -221,7 +222,7 @@ export async function listarPagamentos(
 export async function listarPedidosAReceber(empresaId: string): Promise<PedidoAReceber[]> {
   const { data, error } = await supabase
     .from("pedidos")
-    .select("id, numero, total, valor_pago, criado_em")
+    .select("id, numero, total, valor_pago, criado_em, identificacao")
     .eq("empresa_id", empresaId)
     .eq("origem", "BALCAO")
     .in("status_financeiro", ["UNPAID", "PARTIALLY_PAID"])
@@ -237,6 +238,7 @@ export async function listarPedidosAReceber(empresaId: string): Promise<PedidoAR
     total: Number(p.total),
     valorPago: Number(p.valor_pago),
     criadoEm: p.criado_em,
+    identificacao: p.identificacao,
   }));
 }
 

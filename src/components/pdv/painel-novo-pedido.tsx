@@ -28,7 +28,7 @@ import { novoUuid } from "@/lib/uuid";
 import type { MesaEstado } from "@/services/pedidos";
 
 import { totalDoItem, type ItemCarrinho } from "./use-carrinho";
-import type { ModoDestino, NovoPedido } from "./use-novo-pedido";
+import { TAMANHO_IDENTIFICACAO, type ModoDestino, type NovoPedido } from "./use-novo-pedido";
 
 const MODOS: { id: ModoDestino; label: string; icone: typeof Store }[] = [
   { id: "BALCAO", label: "Balcão", icone: Store },
@@ -100,7 +100,23 @@ export function PainelNovoPedido({
         </div>
 
         {novo.modo === "BALCAO" && (
-          <BotaoCliente nome={novo.cliente?.nome ?? null} onClick={aoEscolherCliente} />
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="nome-chamar" className="text-xs text-muted-foreground">
+                Nome para chamar (opcional)
+              </Label>
+              <Input
+                id="nome-chamar"
+                value={novo.identificacao}
+                maxLength={TAMANHO_IDENTIFICACAO}
+                autoComplete="off"
+                onChange={(e) => novo.mudarIdentificacao(e.target.value)}
+                placeholder="Ex.: João"
+                className="h-11 rounded-lg"
+              />
+            </div>
+            <BotaoCliente nome={novo.cliente?.nome ?? null} onClick={aoEscolherCliente} />
+          </div>
         )}
         {novo.modo === "MESA" && <EscolhaDeMesa novo={novo} />}
         {novo.modo === "COMANDA" && (
@@ -205,6 +221,8 @@ export function PainelNovoPedido({
                 className="w-full"
                 disabled={bloqueado}
                 onClick={() => aoEnviar(false)}
+                title="Ctrl+Enter"
+                aria-keyshortcuts="Control+Enter"
               >
                 <Clock aria-hidden="true" />
                 Enviar e receber depois
@@ -216,6 +234,8 @@ export function PainelNovoPedido({
               className="w-full"
               disabled={bloqueado}
               onClick={() => aoEnviar(false)}
+              title="Ctrl+Enter"
+              aria-keyshortcuts="Control+Enter"
             >
               {novo.enviando ? (
                 <Loader2 className="animate-spin" aria-hidden="true" />

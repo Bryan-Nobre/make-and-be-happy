@@ -52,7 +52,7 @@ export function PainelPedido({
   const pagamento = STATUS_PAGAMENTO[p.statusFinanceiro];
   const saldo = Math.max(0, p.total - p.valorPago);
   const naMesa = p.origem === "MESA";
-  const local = naMesa ? (p.nomeMesa ?? "Mesa") : "Balcão";
+  const local = naMesa ? (p.nomeMesa ?? "Mesa") : (p.identificacao ?? "Balcão");
   const comandaAberta = !!p.comandaId && comandaAceitaPedidos(p.comandaId);
   const receberAqui = !naMesa && aguardandoPagamento(p) && podeReceber;
 
@@ -73,7 +73,7 @@ export function PainelPedido({
               <span className="truncate">{local}</span>
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
-              Pedido {numeroPedido(p.numero)} · {time(p.criadoEm)}
+              {p.identificacao && "Balcão · "}Pedido {numeroPedido(p.numero)} · {time(p.criadoEm)}
             </p>
           </div>
           {p.pessoas !== null && (

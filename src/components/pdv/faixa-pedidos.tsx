@@ -160,7 +160,7 @@ function CardPedido({
 }) {
   const operacional = STATUS_OPERACIONAL[p.status];
   const pagamento = STATUS_PAGAMENTO[p.statusFinanceiro];
-  const local = p.origem === "MESA" ? (p.nomeMesa ?? "Mesa") : "Balcão";
+  const local = p.origem === "MESA" ? (p.nomeMesa ?? "Mesa") : (p.identificacao ?? "Balcão");
 
   return (
     <button
@@ -178,7 +178,14 @@ function CardPedido({
         <span className="text-sm font-semibold text-foreground tabular-nums">
           Pedido {numeroPedido(p.numero)}
         </span>
-        <span className="truncate text-xs font-medium text-muted-foreground">{local}</span>
+        <span
+          className={cn(
+            "truncate text-xs font-medium",
+            p.identificacao ? "font-semibold text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {local}
+        </span>
       </span>
       <span className="flex items-baseline justify-between gap-2 text-sm">
         <span className="font-semibold text-foreground tabular-nums">

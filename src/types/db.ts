@@ -1213,6 +1213,7 @@ export type Database = {
           empresa_id: string;
           entregue_em: string | null;
           id: string;
+          identificacao: string | null;
           motivo_cancelamento: string | null;
           numero: number;
           observacoes: string | null;
@@ -1240,6 +1241,7 @@ export type Database = {
           empresa_id: string;
           entregue_em?: string | null;
           id?: string;
+          identificacao?: string | null;
           motivo_cancelamento?: string | null;
           numero: number;
           observacoes?: string | null;
@@ -1267,6 +1269,7 @@ export type Database = {
           empresa_id?: string;
           entregue_em?: string | null;
           id?: string;
+          identificacao?: string | null;
           motivo_cancelamento?: string | null;
           numero?: number;
           observacoes?: string | null;
@@ -1929,6 +1932,7 @@ export type Database = {
           p_confirmar?: boolean;
           p_desconto?: number;
           p_empresa: string;
+          p_identificacao?: string;
           p_itens: Json;
           p_observacoes?: string;
           p_origem: Database["public"]["Enums"]["origem_pedido"];
@@ -2018,6 +2022,7 @@ export type Database = {
           confirmado_em: string;
           criado_em: string;
           enviado_em: string;
+          identificacao: string;
           item_id: string;
           nome_mesa: string;
           nome_produto: string;

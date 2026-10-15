@@ -3,14 +3,20 @@ import { toast } from "sonner";
 
 import type { ClienteEscolhido } from "@/components/shared/seletor-cliente";
 import { useMesasEstado, usePedidoMutations } from "@/hooks/use-pedidos";
+import { registrarMaisPedidos } from "@/lib/pdv/mais-pedidos";
+import { useAuth } from "@/providers/auth";
 import { useEmpresaAtual } from "@/providers/empresa";
 
 import { useCarrinho } from "./use-carrinho";
 
 export type ModoDestino = "BALCAO" | "MESA" | "COMANDA";
 
+/** Mesmo limite da constraint `pedidos_identificacao_tamanho`. */
+export const TAMANHO_IDENTIFICACAO = 40;
+
 export function useNovoPedido(comandaInicial: string | null) {
-  const { papel } = useEmpresaAtual();
+  const { empresa, papel } = useEmpresaAtual();
+  const { usuario } = useAuth();
   const carrinho = useCarrinho();
   const mesas = useMesasEstado();
   const { criar } = usePedidoMutations();
@@ -19,6 +25,7 @@ export function useNovoPedido(comandaInicial: string | null) {
   const [comandaId, setComandaId] = useState(comandaInicial ?? "");
   const [desconto, setDesconto] = useState<number | "">("");
   const [cliente, setCliente] = useState<ClienteEscolhido | null>(null);
+  const [identificacao, setIdentificacao] = useState("");
 
   // Nota: controla apenas a interface. Quem pode conceder desconto é decidido
   // pela função `criar_pedido` no banco.
@@ -53,11 +60,15 @@ export function useNovoPedido(comandaInicial: string | null) {
 
   const mudarDesconto = (valor: number | "") => carrinho.mudar(() => setDesconto(valor));
 
+  const mudarIdentificacao = (valor: string) =>
+    carrinho.mudar(() => setIdentificacao(valor.slice(0, TAMANHO_IDENTIFICACAO)));
+
   /** Começa do zero; com `comanda`, já aponta o pedido para ela. */
   const reiniciar = (comanda: string | null = null) => {
     carrinho.limpar();
     setDesconto("");
     setCliente(null);
+    setIdentificacao("");
     setComandaId(comanda ?? "");
     setModo(comanda ? "MESA" : "BALCAO");
   };
@@ -71,6 +82,7 @@ export function useNovoPedido(comandaInicial: string | null) {
       {
         comandaId: destino?.comandaId ?? null,
         clienteId: destino ? null : (cliente?.id ?? null),
+        identificacao: destino ? null : identificacao.trim() || null,
         desconto: valorDesconto,
         requisicaoId: carrinho.requisicaoId,
         itens: carrinho.itens.map((i) => ({
@@ -80,13 +92,21 @@ export function useNovoPedido(comandaInicial: string | null) {
           adicionais: i.adicionais.map((a) => a.id),
         })),
         resumo: {
-          destino: destino?.nome ?? "Balcão",
+          destino:
+            destino?.nome ?? (identificacao.trim() ? `Balcão · ${identificacao.trim()}` : "Balcão"),
           itens: carrinho.itens.map((i) => ({ nome: i.produto.nome, quantidade: i.quantidade })),
           totalPrevisto: total,
         },
       },
       {
         onSuccess: (pedidoId) => {
+          if (usuario) {
+            registrarMaisPedidos(
+              usuario.id,
+              empresa.id,
+              carrinho.itens.map((i) => ({ produtoId: i.produto.id, quantidade: i.quantidade })),
+            );
+          }
           reiniciar();
           if (pedidoId === null) {
             toast.warning("Sem conexão: pedido salvo no aparelho.", {
@@ -113,6 +133,7 @@ export function useNovoPedido(comandaInicial: string | null) {
     destino,
     faltaDestino,
     cliente,
+    identificacao,
     desconto,
     podeDescontar,
     valorDesconto,
@@ -122,6 +143,7 @@ export function useNovoPedido(comandaInicial: string | null) {
     escolherComanda,
     escolherCliente,
     mudarDesconto,
+    mudarIdentificacao,
     reiniciar,
     enviar,
   };

@@ -403,7 +403,10 @@ function AReceber({ className }: { className?: string }) {
             return (
               <li key={p.id} className="flex items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">Pedido #{p.numero}</p>
+                  <p className="truncate font-medium text-foreground">
+                    Pedido #{p.numero}
+                    {p.identificacao && ` · ${p.identificacao}`}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {time(p.criadoEm)}
                     {p.valorPago > 0 && ` · pago ${brl(p.valorPago)} de ${brl(p.total)}`}
@@ -422,7 +425,7 @@ function AReceber({ className }: { className?: string }) {
       <DialogoPagamento
         aberto={!!recebendo}
         aoMudarAberto={(aberto) => !aberto && setRecebendo(null)}
-        titulo={`Receber pedido #${recebendo?.numero ?? ""}`}
+        titulo={`Receber pedido #${recebendo?.numero ?? ""}${recebendo?.identificacao ? ` · ${recebendo.identificacao}` : ""}`}
         saldo={recebendo ? recebendo.total - recebendo.valorPago : 0}
         alvo={recebendo ? { pedidoId: recebendo.id } : null}
       />

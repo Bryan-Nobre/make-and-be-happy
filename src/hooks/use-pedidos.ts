@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 import { chaves } from "@/lib/chaves";
 import { ErroDeRegra } from "@/lib/erros";
@@ -16,7 +16,6 @@ import {
   type AcaoAbertura,
   type ResumoPedido,
 } from "@/lib/offline/fila";
-import { supabase } from "@/lib/supabase";
 import { novoUuid } from "@/lib/uuid";
 import { useAuth } from "@/providers/auth";
 import { useEmpresaAtual } from "@/providers/empresa";
@@ -25,6 +24,7 @@ import * as servico from "@/services/pedidos";
 import { dataNoFuso, limitesDoPeriodo } from "@/services/relatorios";
 
 import { useMutacao } from "./use-mutacao";
+import { useRealtime } from "./use-realtime";
 
 /** Reserva para quando o canal Realtime cair sem avisar. */
 const INTERVALO_RESERVA_MS = 30_000;
@@ -33,39 +33,16 @@ const INTERVALO_RESERVA_MS = 30_000;
 // Realtime
 // ---------------------------------------------------------------------------
 
-/**
- * Invalida o cache do salão quando pedidos ou comandas da empresa mudam.
- * O filtro por empresa reduz o tráfego; quem garante o isolamento é a RLS,
- * que o Realtime aplica antes de entregar cada evento.
- */
+/** Recarrega o salão (mesas, comandas, pedidos) quando pedidos ou comandas da empresa mudam. */
 export function useRealtimeSalao() {
   const { empresa } = useEmpresaAtual();
-  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const filtro = `empresa_id=eq.${empresa.id}`;
-    const invalidar = () => {
-      void queryClient.invalidateQueries({ queryKey: chaves.salao(empresa.id) });
-    };
-
-    const canal = supabase
-      .channel(`salao:${empresa.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "pedidos", filter: filtro },
-        invalidar,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "comandas", filter: filtro },
-        invalidar,
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [empresa.id, queryClient]);
+  useRealtime({
+    nome: "salao",
+    empresaId: empresa.id,
+    tabelas: ["pedidos", "comandas"],
+    invalidar: [chaves.salao(empresa.id)],
+  });
 }
 
 /**
@@ -74,29 +51,13 @@ export function useRealtimeSalao() {
  */
 export function useRealtimeCozinha() {
   const { empresa } = useEmpresaAtual();
-  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const canal = supabase
-      .channel(`cozinha:${empresa.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "eventos_cozinha",
-          filter: `empresa_id=eq.${empresa.id}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: chaves.painelCozinha(empresa.id) });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [empresa.id, queryClient]);
+  useRealtime({
+    nome: "cozinha",
+    empresaId: empresa.id,
+    tabelas: ["eventos_cozinha"],
+    invalidar: [chaves.painelCozinha(empresa.id)],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -369,6 +330,7 @@ export function usePedidoMutations() {
     executar: async (entrada: {
       comandaId: string | null;
       clienteId?: string | null;
+      identificacao?: string | null;
       itens: servico.ItemNovo[];
       desconto: number;
       requisicaoId: string;
@@ -391,6 +353,7 @@ export function usePedidoMutations() {
             comandaId: local ? null : entrada.comandaId,
             comandaLocal: local ? aberturaDaComandaLocal(local) : null,
             clienteId: entrada.clienteId ?? null,
+            identificacao: entrada.identificacao ?? null,
             itens: entrada.itens,
             desconto: entrada.desconto,
           },

@@ -1,5 +1,5 @@
-import { Grid2X2, Minus, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Grid2X2, Minus, Plus, Search, Star } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -8,17 +8,37 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCategorias, useGruposAdicionais, useProdutos, useSetores } from "@/hooks/use-catalogo";
 import { brl } from "@/lib/format";
 import { iconeDaCategoria } from "@/lib/icone-categoria";
+import { lerMaisPedidos } from "@/lib/pdv/mais-pedidos";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth";
+import { useEmpresaAtual } from "@/providers/empresa";
 import type { Produto } from "@/services/catalogo";
 
 const plural = (n: number) => `${n} ${n === 1 ? "item" : "itens"}`;
 
+/** Minúsculas e sem acento: "Pão" e "pao" casam. */
+const normalizar = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
+const MAIS_PEDIDOS = "mais";
+
+/** Digitando em um campo, os atalhos de tecla única ficam desligados. */
+const digitando = (alvo: EventTarget | null) =>
+  alvo instanceof HTMLElement &&
+  (alvo.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName));
+
 export function CatalogoPdv({
   quantidadeDoProduto,
+  carrinhoVazio,
   aoEscolher,
   aoDiminuir,
 }: {
   quantidadeDoProduto: (produtoId: string) => number;
+  /** Muda para `true` depois de cada envio: é quando o atalho "Mais pedidos" é relido. */
+  carrinhoVazio: boolean;
   aoEscolher: (produto: Produto) => void;
   aoDiminuir: (produto: Produto) => void;
 }) {
@@ -26,9 +46,31 @@ export function CatalogoPdv({
   const categorias = useCategorias();
   const setores = useSetores();
   const grupos = useGruposAdicionais();
+  const { empresa } = useEmpresaAtual();
+  const { usuario } = useAuth();
+  const usuarioId = usuario?.id ?? null;
 
   const [categoria, setCategoria] = useState("todas");
   const [busca, setBusca] = useState("");
+  const [maisPedidos, setMaisPedidos] = useState<string[]>([]);
+  const campoBusca = useRef<HTMLInputElement>(null);
+
+  // Lido depois da montagem: o localStorage não existe na renderização do servidor.
+  useEffect(() => {
+    if (usuarioId && carrinhoVazio) setMaisPedidos(lerMaisPedidos(usuarioId, empresa.id));
+  }, [usuarioId, empresa.id, carrinhoVazio]);
+
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (digitando(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "/" || e.key === "F2") {
+        e.preventDefault();
+        campoBusca.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
 
   const categoriasAtivas = useMemo(
     () => (categorias.data ?? []).filter((c) => c.ativa),
@@ -40,14 +82,23 @@ export function CatalogoPdv({
     return (produtos.data ?? []).filter((p) => p.ativo && ativas.has(p.categoriaId));
   }, [produtos.data, categoriasAtivas]);
 
+  const listaMaisPedidos = useMemo(() => {
+    const porId = new Map(vendaveisNoCardapio.map((p) => [p.id, p]));
+    return maisPedidos.flatMap((id) => porId.get(id) ?? []);
+  }, [vendaveisNoCardapio, maisPedidos]);
+
   const lista = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return vendaveisNoCardapio.filter(
-      (p) =>
-        (categoria === "todas" || p.categoriaId === categoria) &&
-        (p.nome.toLowerCase().includes(termo) || p.codigo.toLowerCase().includes(termo)),
-    );
-  }, [vendaveisNoCardapio, categoria, busca]);
+    const termos = normalizar(busca).split(/\s+/).filter(Boolean);
+    const base =
+      categoria === MAIS_PEDIDOS
+        ? listaMaisPedidos
+        : vendaveisNoCardapio.filter((p) => categoria === "todas" || p.categoriaId === categoria);
+    if (termos.length === 0) return base;
+    return base.filter((p) => {
+      const texto = normalizar(`${p.nome} ${p.codigo}`);
+      return termos.every((t) => texto.includes(t));
+    });
+  }, [vendaveisNoCardapio, listaMaisPedidos, categoria, busca]);
 
   const setoresInativos = useMemo(
     () => new Set((setores.data ?? []).filter((s) => !s.ativo).map((s) => s.id)),
@@ -57,6 +108,23 @@ export function CatalogoPdv({
     p.disponivel && !(p.setorId !== null && setoresInativos.has(p.setorId));
 
   const nomeCategoria = (id: string) => categoriasAtivas.find((c) => c.id === id)?.nome ?? "";
+
+  /** Enter na busca: código exato ou resultado único entra direto no pedido. */
+  const escolherPelaBusca = () => {
+    const termo = normalizar(busca.trim());
+    if (!termo) return;
+    const porCodigo = vendaveisNoCardapio.find((p) => p.codigo && normalizar(p.codigo) === termo);
+    const disponiveis = lista.filter(vendavel);
+    const produto =
+      porCodigo && vendavel(porCodigo)
+        ? porCodigo
+        : disponiveis.length === 1
+          ? disponiveis[0]
+          : undefined;
+    if (!produto) return;
+    aoEscolher(produto);
+    setBusca("");
+  };
 
   const carregando = produtos.isPending || categorias.isPending || grupos.isPending;
   const erro = produtos.isError || categorias.isError || grupos.isError;
@@ -69,12 +137,29 @@ export function CatalogoPdv({
           aria-hidden="true"
         />
         <Input
-          className="h-11 rounded-lg bg-card pl-10"
+          ref={campoBusca}
+          className="h-11 rounded-lg bg-card pr-12 pl-10"
           placeholder="Buscar produto por nome ou código..."
           aria-label="Buscar produto por nome ou código"
+          aria-keyshortcuts="/ F2"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
+              e.preventDefault();
+              escolherPelaBusca();
+            } else if (e.key === "Escape") {
+              if (busca) setBusca("");
+              else e.currentTarget.blur();
+            }
+          }}
         />
+        <kbd
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded border border-border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground md:block"
+        >
+          /
+        </kbd>
       </div>
 
       {carregando ? (
@@ -97,6 +182,9 @@ export function CatalogoPdv({
           >
             {[
               { id: "todas", nome: "Todos", total: vendaveisNoCardapio.length },
+              ...(listaMaisPedidos.length > 0
+                ? [{ id: MAIS_PEDIDOS, nome: "Mais pedidos", total: listaMaisPedidos.length }]
+                : []),
               ...categoriasAtivas.map((c) => ({
                 id: c.id,
                 nome: c.nome,
@@ -104,7 +192,12 @@ export function CatalogoPdv({
               })),
             ].map((c) => {
               const ativa = categoria === c.id;
-              const Icone = c.id === "todas" ? Grid2X2 : iconeDaCategoria(c.nome);
+              const Icone =
+                c.id === "todas"
+                  ? Grid2X2
+                  : c.id === MAIS_PEDIDOS
+                    ? Star
+                    : iconeDaCategoria(c.nome);
               return (
                 <button
                   key={c.id}

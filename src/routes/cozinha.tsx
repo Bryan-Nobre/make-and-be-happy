@@ -302,13 +302,16 @@ function Ticket({
       )}
     >
       <header className="flex items-start justify-between gap-2">
-        <span className="text-base font-semibold text-foreground tabular-nums">
-          #{ticket.numero}
+        <span className="flex min-w-0 items-baseline gap-2 text-base font-semibold text-foreground">
+          <span className="shrink-0 tabular-nums">#{ticket.numero}</span>
+          {ticket.identificacao && (
+            <span className="truncate text-lg font-bold">{ticket.identificacao}</span>
+          )}
         </span>
         <span
           title={`Enviado às ${time(ticket.enviadoEm)}`}
           className={cn(
-            "flex items-center gap-1 text-xs font-medium tabular-nums",
+            "flex shrink-0 items-center gap-1 text-xs font-medium tabular-nums",
             atrasado ? "text-destructive" : atencao ? "text-warning" : "text-muted-foreground",
           )}
         >
