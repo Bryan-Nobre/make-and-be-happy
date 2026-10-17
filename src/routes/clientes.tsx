@@ -30,9 +30,9 @@ import type { Cliente } from "@/services/clientes";
 export const Route = createFileRoute("/clientes")({
   head: () => ({
     meta: [
-      { title: "Clientes — ARVON FOOD" },
+      { title: "Clientes — Arvon Food" },
       { name: "description", content: "Cadastro e histórico de consumo dos clientes." },
-      { property: "og:title", content: "Clientes — ARVON FOOD" },
+      { property: "og:title", content: "Clientes — Arvon Food" },
       {
         property: "og:description",
         content: "Cadastro e histórico de consumo dos clientes.",

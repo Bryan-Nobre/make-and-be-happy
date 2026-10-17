@@ -46,9 +46,9 @@ import { METODO_LABEL } from "@/services/configuracoes";
 export const Route = createFileRoute("/caixa")({
   head: () => ({
     meta: [
-      { title: "Caixa — ARVON FOOD" },
+      { title: "Caixa — Arvon Food" },
       { name: "description", content: "Abertura, sangria, suprimento e fechamento de caixa." },
-      { property: "og:title", content: "Caixa — ARVON FOOD" },
+      { property: "og:title", content: "Caixa — Arvon Food" },
       {
         property: "og:description",
         content: "Abertura, sangria, suprimento e fechamento de caixa.",

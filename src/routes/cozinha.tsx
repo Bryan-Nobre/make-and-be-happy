@@ -21,9 +21,9 @@ export const Route = createFileRoute("/cozinha")({
   },
   head: () => ({
     meta: [
-      { title: "Cozinha — ARVON FOOD" },
+      { title: "Cozinha — Arvon Food" },
       { name: "description", content: "Painel de produção com pedidos por etapa de preparo." },
-      { property: "og:title", content: "Cozinha — ARVON FOOD" },
+      { property: "og:title", content: "Cozinha — Arvon Food" },
       {
         property: "og:description",
         content: "Painel de produção com pedidos por etapa de preparo.",

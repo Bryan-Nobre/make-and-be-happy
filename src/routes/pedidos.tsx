@@ -32,9 +32,9 @@ export const Route = createFileRoute("/pedidos")({
   },
   head: () => ({
     meta: [
-      { title: "Pedidos — ARVON FOOD" },
+      { title: "Pedidos — Arvon Food" },
       { name: "description", content: "Ponto de venda: crie, acompanhe e receba pedidos." },
-      { property: "og:title", content: "Pedidos — ARVON FOOD" },
+      { property: "og:title", content: "Pedidos — Arvon Food" },
       {
         property: "og:description",
         content: "Ponto de venda: crie, acompanhe e receba pedidos.",

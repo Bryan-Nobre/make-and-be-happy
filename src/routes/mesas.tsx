@@ -24,9 +24,9 @@ export const Route = createFileRoute("/mesas")({
   },
   head: () => ({
     meta: [
-      { title: "Mesas — ARVON FOOD" },
+      { title: "Mesas — Arvon Food" },
       { name: "description", content: "Mapa de mesas, comandas abertas e fechamento de conta." },
-      { property: "og:title", content: "Mesas — ARVON FOOD" },
+      { property: "og:title", content: "Mesas — Arvon Food" },
       {
         property: "og:description",
         content: "Mapa de mesas, comandas abertas e fechamento de conta.",

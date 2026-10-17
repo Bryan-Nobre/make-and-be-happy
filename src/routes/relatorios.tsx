@@ -34,9 +34,9 @@ import { dataNoFuso, somarDias, type Periodo } from "@/services/relatorios";
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
     meta: [
-      { title: "Relatórios — ARVON FOOD" },
+      { title: "Relatórios — Arvon Food" },
       { name: "description", content: "Vendas, produtos, caixa, estoque e auditoria." },
-      { property: "og:title", content: "Relatórios — ARVON FOOD" },
+      { property: "og:title", content: "Relatórios — Arvon Food" },
       { property: "og:description", content: "Vendas, produtos, caixa, estoque e auditoria." },
     ],
   }),

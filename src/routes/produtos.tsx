@@ -81,9 +81,9 @@ export const Route = createFileRoute("/produtos")({
   },
   head: () => ({
     meta: [
-      { title: "Produtos — ARVON FOOD" },
+      { title: "Produtos — Arvon Food" },
       { name: "description", content: "Cardápio, categorias e grupos de adicionais." },
-      { property: "og:title", content: "Produtos — ARVON FOOD" },
+      { property: "og:title", content: "Produtos — Arvon Food" },
       { property: "og:description", content: "Cardápio, categorias e grupos de adicionais." },
     ],
   }),

@@ -18,7 +18,7 @@ export const Route = createFileRoute("/aceitar-convite")({
   }),
   head: () => ({
     meta: [
-      { title: "Convite — ARVON FOOD" },
+      { title: "Convite — Arvon Food" },
       { name: "description", content: "Aceite o convite para participar de uma equipe." },
     ],
   }),

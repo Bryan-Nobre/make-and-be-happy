@@ -421,7 +421,7 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const allowed = modulos.length === 0 || modulos.some(podeVer);
-  const pagina = PAGINAS[pathname] ?? { titulo: "ARVON FOOD" };
+  const pagina = PAGINAS[pathname] ?? { titulo: "Arvon Food" };
   const label = pagina.titulo;
 
   return (

@@ -52,12 +52,12 @@ import { linkDoConvite } from "@/services/equipe";
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
     meta: [
-      { title: "Configurações — ARVON FOOD" },
+      { title: "Configurações — Arvon Food" },
       {
         name: "description",
         content: "Dados da empresa, regras de operação, usuários e permissões.",
       },
-      { property: "og:title", content: "Configurações — ARVON FOOD" },
+      { property: "og:title", content: "Configurações — Arvon Food" },
       {
         property: "og:description",
         content: "Dados da empresa, regras de operação, usuários e permissões.",

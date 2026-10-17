@@ -44,9 +44,9 @@ import {
 export const Route = createFileRoute("/estoque")({
   head: () => ({
     meta: [
-      { title: "Estoque — ARVON FOOD" },
+      { title: "Estoque — Arvon Food" },
       { name: "description", content: "Controle de insumos, entradas, saídas e ajustes." },
-      { property: "og:title", content: "Estoque — ARVON FOOD" },
+      { property: "og:title", content: "Estoque — Arvon Food" },
       { property: "og:description", content: "Controle de insumos, entradas, saídas e ajustes." },
     ],
   }),

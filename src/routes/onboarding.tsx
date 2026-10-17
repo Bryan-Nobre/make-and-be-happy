@@ -27,7 +27,7 @@ import { criarEmpresaComOwner } from "@/services/empresas";
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
-      { title: "Cadastrar restaurante — ARVON FOOD" },
+      { title: "Cadastrar restaurante — Arvon Food" },
       { name: "description", content: "Cadastre o seu restaurante para começar a operar." },
     ],
   }),
@@ -72,7 +72,7 @@ function Onboarding() {
 
       selecionarEmpresa(empresaId);
       recarregar();
-      toast.success("Restaurante cadastrado. Bem-vindo ao ARVON FOOD.");
+      toast.success("Restaurante cadastrado. Bem-vindo ao Arvon Food.");
       void navigate({ to: "/", replace: true });
     } catch (erro) {
       toast.error(mensagemDeErro(erro));

@@ -31,12 +31,12 @@ import { formatarNumeroQuantidade, UNIDADE_LABEL } from "@/services/estoque";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — ARVON FOOD" },
+      { title: "Dashboard — Arvon Food" },
       {
         name: "description",
         content: "Visão geral do dia: vendas, pedidos, mesas e alertas do restaurante.",
       },
-      { property: "og:title", content: "Dashboard — ARVON FOOD" },
+      { property: "og:title", content: "Dashboard — Arvon Food" },
       {
         property: "og:description",
         content: "Visão geral do dia: vendas, pedidos, mesas e alertas do restaurante.",

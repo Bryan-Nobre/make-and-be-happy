@@ -27,7 +27,7 @@ export const Route = createFileRoute("/login")({
   },
   head: () => ({
     meta: [
-      { title: "Entrar — ARVON FOOD" },
+      { title: "Entrar — Arvon Food" },
       { name: "description", content: "Acesse o painel de gestão do seu restaurante." },
     ],
   }),

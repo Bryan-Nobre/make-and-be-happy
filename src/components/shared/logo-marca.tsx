@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** Marca ARVON FOOD (logo do produto, não a logo do restaurante). */
+/** Marca Arvon Food (logo do produto, não a logo do restaurante). */
 export function LogoMarca({
   className,
   mostrarNome = true,
@@ -26,7 +26,7 @@ export function LogoMarca({
       {mostrarNome && (
         <span className="min-w-0 leading-tight">
           <span className={cn("block truncate font-bold tracking-tight text-foreground", titulo)}>
-            ARVON FOOD
+            Arvon Food
           </span>
           <span className="block truncate text-xs text-muted-foreground">
             Gestão para restaurantes

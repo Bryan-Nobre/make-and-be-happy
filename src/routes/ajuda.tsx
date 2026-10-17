@@ -18,10 +18,10 @@ import { useEmpresa } from "@/providers/empresa";
 export const Route = createFileRoute("/ajuda")({
   head: () => ({
     meta: [
-      { title: "Central de ajuda — ARVON FOOD" },
-      { name: "description", content: "Guia rápido das rotinas do ARVON FOOD." },
-      { property: "og:title", content: "Central de ajuda — ARVON FOOD" },
-      { property: "og:description", content: "Guia rápido das rotinas do ARVON FOOD." },
+      { title: "Central de ajuda — Arvon Food" },
+      { name: "description", content: "Guia rápido das rotinas do Arvon Food." },
+      { property: "og:title", content: "Central de ajuda — Arvon Food" },
+      { property: "og:description", content: "Guia rápido das rotinas do Arvon Food." },
     ],
   }),
   component: () => (

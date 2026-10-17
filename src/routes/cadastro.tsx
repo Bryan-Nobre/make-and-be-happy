@@ -29,7 +29,7 @@ export const Route = createFileRoute("/cadastro")({
   },
   head: () => ({
     meta: [
-      { title: "Criar conta — ARVON FOOD" },
+      { title: "Criar conta — Arvon Food" },
       { name: "description", content: "Crie a sua conta para gerenciar o seu restaurante." },
     ],
   }),

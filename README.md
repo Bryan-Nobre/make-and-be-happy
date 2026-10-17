@@ -1,4 +1,4 @@
-# ARVON FOOD
+# Arvon Food
 
 Sistema de gestão para restaurantes: PDV, mesas, cozinha, caixa, estoque e relatórios.
 
