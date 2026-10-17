@@ -66,7 +66,7 @@ function Onboarding() {
     }
     const convite = lerConvitePendente();
     if (convite) {
-      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+      void navigate({ to: "/aceitar-convite", search: { convite }, replace: true });
     }
   }, [carregandoAuth, usuario, carregando, vinculos.length, navigate]);
 

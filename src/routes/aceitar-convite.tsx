@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -8,6 +8,7 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
+  extrairTokenConviteDaBusca,
   guardarConvitePendente,
   limparConvitePendente,
   lerConvitePendente,
@@ -16,18 +17,22 @@ import { mensagemDeErro } from "@/lib/erros";
 import { MODULOS_POR_PAPEL, PAPEL_LABEL, type ModuloKey, type Papel } from "@/lib/permissoes";
 import { useAuth } from "@/providers/auth";
 import { useEmpresa } from "@/providers/empresa";
+import { sair } from "@/services/auth";
 import { aceitarConvite, consultarConvite } from "@/services/convites";
 
-const ROTA_POR_MODULO: Partial<Record<ModuloKey, "/mesas" | "/pedidos" | "/cozinha" | "/caixa" | "/">> =
-  {
-    dashboard: "/",
-    pdv: "/pedidos",
-    mesas: "/mesas",
-    cozinha: "/cozinha",
-    caixa: "/caixa",
-  };
+const ROTA_POR_MODULO: Partial<
+  Record<ModuloKey, "/mesas" | "/pedidos" | "/cozinha" | "/caixa" | "/">
+> = {
+  dashboard: "/",
+  pdv: "/pedidos",
+  mesas: "/mesas",
+  cozinha: "/cozinha",
+  caixa: "/caixa",
+};
 
-function destinoAposConvite(papel: Papel | undefined): "/" | "/mesas" | "/pedidos" | "/cozinha" | "/caixa" {
+function destinoAposConvite(
+  papel: Papel | undefined,
+): "/" | "/mesas" | "/pedidos" | "/cozinha" | "/caixa" {
   if (!papel) return "/";
   for (const modulo of MODULOS_POR_PAPEL[papel]) {
     const rota = ROTA_POR_MODULO[modulo];
@@ -38,7 +43,8 @@ function destinoAposConvite(papel: Papel | undefined): "/" | "/mesas" | "/pedido
 
 export const Route = createFileRoute("/aceitar-convite")({
   validateSearch: (search: Record<string, unknown>) => ({
-    token: typeof search["token"] === "string" ? search["token"] : "",
+    // Aceita `convite` (atual) e `token` (links antigos), ignorando JWT do Auth.
+    convite: extrairTokenConviteDaBusca(search),
   }),
   head: () => ({
     meta: [
@@ -49,27 +55,56 @@ export const Route = createFileRoute("/aceitar-convite")({
   component: AceitarConvite,
 });
 
+function BotaoSair({ rotulo = "Sair desta conta" }: { rotulo?: string }) {
+  const navigate = useNavigate();
+  const [saindo, setSaindo] = useState(false);
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-11 w-full"
+      disabled={saindo}
+      onClick={() => {
+        setSaindo(true);
+        void sair()
+          .then(() => {
+            limparConvitePendente();
+            void navigate({ to: "/login", replace: true });
+          })
+          .catch((erro) => {
+            setSaindo(false);
+            toast.error(mensagemDeErro(erro));
+          });
+      }}
+    >
+      {saindo ? "Saindo…" : rotulo}
+    </Button>
+  );
+}
+
 function AceitarConvite() {
   const search = Route.useSearch();
-  const token = search.token || lerConvitePendente() || "";
+  const token = search.convite || lerConvitePendente() || "";
   const navigate = useNavigate();
   const { usuario, carregando: carregandoAuth } = useAuth();
   const { selecionarEmpresa, recarregar } = useEmpresa();
 
   useEffect(() => {
-    if (search.token) guardarConvitePendente(search.token);
-  }, [search.token]);
+    if (search.convite) guardarConvitePendente(search.convite);
+  }, [search.convite]);
 
   useEffect(() => {
-    if (search.token || !token) return;
-    void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
-  }, [search.token, token, navigate]);
+    if (search.convite || !token) return;
+    void navigate({ to: "/aceitar-convite", search: { convite: token }, replace: true });
+  }, [search.convite, token, navigate]);
 
   const convite = useQuery({
     queryKey: ["convite", token],
     queryFn: () => consultarConvite(token),
-    enabled: token !== "" && usuario !== null,
-    retry: false,
+    enabled: token !== "" && usuario !== null && !carregandoAuth,
+    retry: 2,
+    retryDelay: 600,
   });
 
   const aceitar = useMutation({
@@ -91,10 +126,16 @@ function AceitarConvite() {
 
   if (!token) {
     return (
-      <AuthShell titulo="Convite inválido" descricao="O link do convite está incompleto.">
-        <Button asChild variant="outline" className="h-11 w-full">
-          <Link to="/login">Ir para o login</Link>
-        </Button>
+      <AuthShell
+        titulo="Convite inválido"
+        descricao="O link do convite está incompleto. Peça um novo link ao administrador ou abra o link que foi copiado/WhatsApp (não o e-mail de confirmação sozinho)."
+      >
+        <div className="space-y-2">
+          <Button asChild variant="outline" className="h-11 w-full">
+            <Link to="/login">Ir para o login</Link>
+          </Button>
+          {usuario && <BotaoSair />}
+        </div>
       </AuthShell>
     );
   }
@@ -129,7 +170,7 @@ function AceitarConvite() {
     );
   }
 
-  if (convite.isLoading) {
+  if (convite.isLoading || convite.isFetching) {
     return (
       <AuthShell titulo="Convite">
         <LoadingState label="Buscando o convite…" />
@@ -139,20 +180,42 @@ function AceitarConvite() {
 
   const dados = convite.data;
 
-  if (convite.isError || !dados || !dados.valido) {
+  if (convite.isError) {
     return (
       <AuthShell
-        titulo="Convite indisponível"
-        descricao="Este convite não existe mais ou já expirou. Peça um novo ao administrador do restaurante."
+        titulo="Não foi possível abrir o convite"
+        descricao="A sessão ainda pode estar sincronizando após o e-mail. Tente de novo ou saia e entre com o e-mail do convite."
       >
-        <Button asChild variant="outline" className="h-11 w-full">
-          <Link to="/">Ir para o início</Link>
-        </Button>
+        <div className="space-y-2">
+          <Button
+            className="h-11 w-full"
+            onClick={() => void convite.refetch()}
+          >
+            Tentar de novo
+          </Button>
+          <BotaoSair rotulo="Sair e usar outra conta" />
+        </div>
       </AuthShell>
     );
   }
 
-  const emailDiferente = usuario.email?.toLowerCase() !== dados.email;
+  if (!dados || !dados.valido) {
+    return (
+      <AuthShell
+        titulo="Convite indisponível"
+        descricao="Este convite já foi usado, expirou ou foi cancelado. Peça um novo link em Configurações → Usuários. Se quiser criar outra conta, saia desta sessão primeiro."
+      >
+        <div className="space-y-2">
+          <Button asChild variant="outline" className="h-11 w-full">
+            <Link to="/">Ir para o início</Link>
+          </Button>
+          <BotaoSair rotulo="Sair e usar outra conta" />
+        </div>
+      </AuthShell>
+    );
+  }
+
+  const emailDiferente = usuario.email?.toLowerCase() !== dados.email.toLowerCase();
 
   return (
     <AuthShell
@@ -172,10 +235,13 @@ function AceitarConvite() {
         </div>
 
         {emailDiferente ? (
-          <p className="text-sm text-destructive">
-            Você entrou como {usuario.email}. Saia e entre com {dados.email} para aceitar este
-            convite.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-destructive">
+              Você entrou como {usuario.email}. Saia e entre com {dados.email} para aceitar este
+              convite.
+            </p>
+            <BotaoSair rotulo="Sair e trocar de conta" />
+          </div>
         ) : (
           <Button
             className="h-11 w-full"

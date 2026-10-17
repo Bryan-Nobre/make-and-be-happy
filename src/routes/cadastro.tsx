@@ -20,12 +20,13 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   guardarConvitePendente,
+  limparConvitePendente,
   lerConvitePendente,
   urlRedirectConvite,
 } from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useAuth } from "@/providers/auth";
-import { cadastrar } from "@/services/auth";
+import { cadastrar, sair } from "@/services/auth";
 
 export const Route = createFileRoute("/cadastro")({
   validateSearch: (search: Record<string, unknown>): { convite?: string } => {
@@ -70,16 +71,19 @@ function Cadastro() {
   }, [convite]);
 
   useEffect(() => {
+    // Enquanto espera o e-mail, não redireciona sozinho: a outra aba do
+    // confirmação compartilha a sessão e isso deixava a tela “travada”.
+    if (aguardandoConfirmacao) return;
     if (carregando || !usuario) return;
 
     const token = convite || lerConvitePendente();
     if (token) {
-      void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
+      void navigate({ to: "/aceitar-convite", search: { convite: token }, replace: true });
       return;
     }
 
     void navigate({ to: "/onboarding", replace: true });
-  }, [carregando, usuario, convite, navigate]);
+  }, [carregando, usuario, convite, navigate, aguardandoConfirmacao]);
 
   const enviar = form.handleSubmit(async (valores) => {
     try {
@@ -98,23 +102,54 @@ function Cadastro() {
   });
 
   if (aguardandoConfirmacao) {
+    const tokenPendente = convite || lerConvitePendente();
     return (
       <AuthShell
         titulo="Confirme o seu e-mail"
         descricao={
-          convite || lerConvitePendente()
-            ? "Abra o link do e-mail para ativar a conta. Depois disso você volta ao convite da equipe — não precisa cadastrar um restaurante novo."
+          tokenPendente
+            ? "Abra o link do e-mail nesta mesma tela ou na aba que abrir. Depois use Continuar para aceitar o convite — não cadastre um restaurante novo."
             : "Enviamos um link de confirmação. Abra o e-mail para ativar a sua conta e depois entre."
         }
       >
-        <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-col items-center gap-3 text-center">
           <span className="flex size-11 items-center justify-center rounded-full bg-primary-soft">
             <MailCheck className="size-5 text-primary" aria-hidden="true" />
           </span>
+          {usuario && tokenPendente && (
+            <Button
+              className="h-11 w-full"
+              onClick={() =>
+                void navigate({
+                  to: "/aceitar-convite",
+                  search: { convite: tokenPendente },
+                  replace: true,
+                })
+              }
+            >
+              Continuar para o convite
+            </Button>
+          )}
           <Button asChild variant="outline" className="h-11 w-full">
-            <Link to="/login" search={{ convite }}>
+            <Link to="/login" search={{ convite: tokenPendente || undefined }}>
               Ir para o login
             </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-11 w-full"
+            onClick={() => {
+              void sair()
+                .then(() => {
+                  limparConvitePendente();
+                  setAguardandoConfirmacao(false);
+                  toast.success("Sessão encerrada. Pode cadastrar outra conta.");
+                })
+                .catch((erro) => toast.error(mensagemDeErro(erro)));
+            }}
+          >
+            Sair e usar outra conta
           </Button>
         </div>
       </AuthShell>

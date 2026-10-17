@@ -32,7 +32,7 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
     // Convite pendente: não manda criar restaurante novo (vira dono com tudo liberado).
     const convite = lerConvitePendente();
     if (convite) {
-      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+      void navigate({ to: "/aceitar-convite", search: { convite }, replace: true });
       return;
     }
 

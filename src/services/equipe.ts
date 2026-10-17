@@ -106,7 +106,7 @@ export async function renomearMembro(membroId: string, nomeExibicao: string): Pr
 }
 
 export function linkDoConvite(token: string): string {
-  return `${window.location.origin}/aceitar-convite?token=${token}`;
+  return `${window.location.origin}/aceitar-convite?convite=${encodeURIComponent(token)}`;
 }
 
 export function mensagemWhatsAppConvite(token: string, nomeExibicao?: string): string {

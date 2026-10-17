@@ -61,7 +61,7 @@ function Login() {
 
     const token = convite || lerConvitePendente();
     if (token) {
-      void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
+      void navigate({ to: "/aceitar-convite", search: { convite: token }, replace: true });
       return;
     }
 
