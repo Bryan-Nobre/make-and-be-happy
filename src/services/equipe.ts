@@ -16,6 +16,7 @@ export type Convite = {
   nomeExibicao: string;
   papel: Papel;
   expiraEm: string;
+  token: string;
 };
 
 export async function listarMembros(empresaId: string): Promise<Membro[]> {
@@ -36,7 +37,7 @@ export async function listarMembros(empresaId: string): Promise<Membro[]> {
 export async function listarConvitesPendentes(empresaId: string): Promise<Convite[]> {
   const { data, error } = await supabase
     .from("convites")
-    .select("id, email, nome_exibicao, papel, expira_em")
+    .select("id, email, nome_exibicao, papel, expira_em, token")
     .eq("empresa_id", empresaId)
     .eq("status", "PENDENTE")
     .gt("expira_em", new Date().toISOString())
@@ -50,6 +51,7 @@ export async function listarConvitesPendentes(empresaId: string): Promise<Convit
     nomeExibicao: linha.nome_exibicao,
     papel: linha.papel,
     expiraEm: linha.expira_em,
+    token: linha.token,
   }));
 }
 
@@ -105,4 +107,23 @@ export async function renomearMembro(membroId: string, nomeExibicao: string): Pr
 
 export function linkDoConvite(token: string): string {
   return `${window.location.origin}/aceitar-convite?token=${token}`;
+}
+
+export function mensagemWhatsAppConvite(token: string, nomeExibicao?: string): string {
+  const link = linkDoConvite(token);
+  const saudacao = nomeExibicao?.trim() ? `Olá, ${nomeExibicao.trim()}!` : "Olá!";
+  return `${saudacao} Você foi convidado(a) para a equipe no Arvon Food. Acesse o link para entrar (não chega por e-mail):\n${link}`;
+}
+
+export function urlWhatsAppConvite(token: string, nomeExibicao?: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(mensagemWhatsAppConvite(token, nomeExibicao))}`;
+}
+
+export async function copiarLinkConvite(token: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(linkDoConvite(token));
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -5,6 +5,7 @@ import {
   Check,
   ChefHat,
   ChevronRight,
+  Copy,
   ListPlus,
   Minus,
   Package,
@@ -47,7 +48,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useEmpresa, useEmpresaAtual } from "@/providers/empresa";
 import { METODO_LABEL, type EntradaEmpresa } from "@/services/configuracoes";
-import { linkDoConvite } from "@/services/equipe";
+import {
+  copiarLinkConvite,
+  linkDoConvite,
+  urlWhatsAppConvite,
+} from "@/services/equipe";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -641,30 +646,43 @@ function SecaoEquipe() {
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [papelConvite, setPapelConvite] = useState<Papel>("waiter");
+  const [ultimoConvite, setUltimoConvite] = useState<{
+    token: string;
+    nomeExibicao: string;
+  } | null>(null);
 
   // Só o proprietário promove alguém a proprietário ou administrador.
   const papeisDisponiveis = papel === "owner" ? PAPEIS : PAPEIS.filter((p) => p !== "owner");
+
+  async function copiarConvite(token: string) {
+    const ok = await copiarLinkConvite(token);
+    toast.success(ok ? "Link copiado." : "Não foi possível copiar. Selecione o link e copie manualmente.");
+  }
 
   return (
     <div className="space-y-4">
       <Secao
         titulo="Convidar pessoa"
-        descricao="O link do convite é copiado ao enviar. O acesso vale só para este restaurante."
+        descricao="Não envia e-mail. Gere o link e compartilhe no WhatsApp ou por mensagem. O acesso vale só para este restaurante."
       >
         <form
           className="grid gap-3 md:grid-cols-[1fr_1fr_10rem_auto] md:items-end"
           onSubmit={(e) => {
             e.preventDefault();
+            const nomeExibicao = nome;
             convidar.mutate(
-              { email, nomeExibicao: nome, papel: papelConvite },
+              { email, nomeExibicao, papel: papelConvite },
               {
                 onSuccess: async (token) => {
                   setEmail("");
                   setNome("");
-                  await navigator.clipboard
-                    .writeText(linkDoConvite(token))
-                    .then(() => toast.success("Convite criado. Link copiado."))
-                    .catch(() => toast.success("Convite criado."));
+                  setUltimoConvite({ token, nomeExibicao });
+                  const ok = await copiarLinkConvite(token);
+                  toast.success(
+                    ok
+                      ? "Convite criado. Link copiado — compartilhe com a pessoa."
+                      : "Convite criado. Use os botões abaixo para compartilhar o link.",
+                  );
                 },
               },
             );
@@ -704,9 +722,44 @@ function SecaoEquipe() {
             </NativeSelect>
           </div>
           <Button type="submit" disabled={convidar.isPending}>
-            {convidar.isPending ? "Enviando…" : "Convidar"}
+            {convidar.isPending ? "Criando…" : "Gerar convite"}
           </Button>
         </form>
+
+        {ultimoConvite && (
+          <div className="mt-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Link pronto para {ultimoConvite.nomeExibicao}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Envie este link à pessoa. Ela precisa criar conta ou entrar com o mesmo e-mail do
+                convite.
+              </p>
+            </div>
+            <Input readOnly value={linkDoConvite(ultimoConvite.token)} className="font-mono text-xs" />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void copiarConvite(ultimoConvite.token)}
+              >
+                <Copy className="size-3.5" />
+                Copiar link
+              </Button>
+              <Button type="button" size="sm" asChild>
+                <a
+                  href={urlWhatsAppConvite(ultimoConvite.token, ultimoConvite.nomeExibicao)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Abrir no WhatsApp
+                </a>
+              </Button>
+            </div>
+          </div>
+        )}
 
         {(convites.data ?? []).length > 0 && (
           <div className="mt-5">
@@ -721,11 +774,28 @@ function SecaoEquipe() {
                     <p className="truncate font-medium">{convite.nomeExibicao}</p>
                     <p className="truncate text-xs text-muted-foreground">{convite.email}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge tone="info">{PAPEL_LABEL[convite.papel]}</StatusBadge>
                     <span className="text-xs text-muted-foreground">
                       expira {dateShort(convite.expiraEm)}
                     </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void copiarConvite(convite.token)}
+                    >
+                      <Copy className="size-3.5" />
+                      Copiar
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <a
+                        href={urlWhatsAppConvite(convite.token, convite.nomeExibicao)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        WhatsApp
+                      </a>
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"

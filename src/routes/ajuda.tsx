@@ -101,9 +101,9 @@ const GUIAS: Guia[] = [
     titulo: "Usuários e permissões",
     icone: ShieldCheck,
     passos: [
-      "Em Configurações, abra a aba Usuários para convidar a equipe.",
+      "Em Configurações, abra a aba Usuários para gerar o link de convite.",
+      "O convite não chega por e-mail: copie o link ou abra no WhatsApp e envie à pessoa.",
       "Cada pessoa recebe um perfil: administrador, caixa, garçom ou cozinha.",
-      "A aba Permissões mostra o que cada perfil pode acessar.",
     ],
     link: { rotulo: "Ir para Configurações", to: "/configuracoes", modulos: ["configuracoes"] },
   },
