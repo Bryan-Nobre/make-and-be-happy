@@ -18,6 +18,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  guardarConvitePendente,
+  lerConvitePendente,
+  urlRedirectConvite,
+} from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useAuth } from "@/providers/auth";
 import { cadastrar } from "@/services/auth";
@@ -61,10 +66,15 @@ function Cadastro() {
   });
 
   useEffect(() => {
+    if (convite) guardarConvitePendente(convite);
+  }, [convite]);
+
+  useEffect(() => {
     if (carregando || !usuario) return;
 
-    if (convite) {
-      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+    const token = convite || lerConvitePendente();
+    if (token) {
+      void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
       return;
     }
 
@@ -73,7 +83,14 @@ function Cadastro() {
 
   const enviar = form.handleSubmit(async (valores) => {
     try {
-      const comSessao = await cadastrar(valores.email, valores.senha);
+      const token = convite || lerConvitePendente();
+      if (token) guardarConvitePendente(token);
+
+      const comSessao = await cadastrar(
+        valores.email,
+        valores.senha,
+        token ? { emailRedirectTo: urlRedirectConvite(token) } : undefined,
+      );
       if (!comSessao) setAguardandoConfirmacao(true);
     } catch (erro) {
       toast.error(mensagemDeErro(erro));
@@ -84,7 +101,11 @@ function Cadastro() {
     return (
       <AuthShell
         titulo="Confirme o seu e-mail"
-        descricao="Enviamos um link de confirmação. Abra o e-mail para ativar a sua conta e depois entre."
+        descricao={
+          convite || lerConvitePendente()
+            ? "Abra o link do e-mail para ativar a conta. Depois disso você volta ao convite da equipe — não precisa cadastrar um restaurante novo."
+            : "Enviamos um link de confirmação. Abra o e-mail para ativar a sua conta e depois entre."
+        }
       >
         <div className="flex flex-col items-center gap-4 text-center">
           <span className="flex size-11 items-center justify-center rounded-full bg-primary-soft">

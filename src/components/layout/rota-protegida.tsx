@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingScreen } from "@/components/shared/loading-state";
+import { lerConvitePendente } from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useConexao } from "@/lib/offline/conectividade";
 import { useAuth } from "@/providers/auth";
@@ -27,6 +28,14 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (carregando || !usuario || erro || vinculos.length > 0) return;
+
+    // Convite pendente: não manda criar restaurante novo (vira dono com tudo liberado).
+    const convite = lerConvitePendente();
+    if (convite) {
+      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+      return;
+    }
+
     void navigate({ to: "/onboarding", replace: true });
   }, [carregando, usuario, erro, vinculos.length, navigate]);
 

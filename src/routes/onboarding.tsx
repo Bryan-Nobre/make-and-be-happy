@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { limparConvitePendente, lerConvitePendente } from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useAuth } from "@/providers/auth";
 import { useEmpresa } from "@/providers/empresa";
@@ -58,12 +59,20 @@ function Onboarding() {
   }, [carregandoAuth, usuario, navigate]);
 
   useEffect(() => {
-    if (carregando || vinculos.length === 0) return;
-    void navigate({ to: "/", replace: true });
-  }, [carregando, vinculos.length, navigate]);
+    if (carregandoAuth || !usuario || carregando) return;
+    if (vinculos.length > 0) {
+      void navigate({ to: "/", replace: true });
+      return;
+    }
+    const convite = lerConvitePendente();
+    if (convite) {
+      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+    }
+  }, [carregandoAuth, usuario, carregando, vinculos.length, navigate]);
 
   const enviar = form.handleSubmit(async (valores) => {
     try {
+      limparConvitePendente();
       const empresaId = await criarEmpresaComOwner({
         nome: valores.nome,
         nomeResponsavel: valores.nomeResponsavel,
@@ -83,10 +92,14 @@ function Onboarding() {
     return <LoadingScreen label="Preparando o seu cadastro…" />;
   }
 
+  if (vinculos.length === 0 && lerConvitePendente()) {
+    return <LoadingScreen label="Abrindo o seu convite…" />;
+  }
+
   return (
     <AuthShell
       titulo="Cadastrar restaurante"
-      descricao="Estes dados podem ser ajustados depois em Configurações."
+      descricao="Estes dados podem ser ajustados depois em Configurações. Se você foi convidado para uma equipe, use o link do convite — não crie outro restaurante."
       rodape={
         <button
           type="button"

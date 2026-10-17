@@ -14,11 +14,21 @@ export async function entrar(email: string, senha: string): Promise<void> {
 /**
  * Cria a conta. Retorna `true` quando o Supabase já devolve sessão ativa e
  * `false` quando o projeto exige confirmação de e-mail antes do primeiro acesso.
+ *
+ * Com convite, passe `emailRedirectTo` para `/aceitar-convite?token=…` (URL
+ * também precisa estar nas Redirect URLs do Supabase Auth).
  */
-export async function cadastrar(email: string, senha: string): Promise<boolean> {
+export async function cadastrar(
+  email: string,
+  senha: string,
+  opcoes?: { emailRedirectTo?: string },
+): Promise<boolean> {
   const { data, error } = await supabase.auth.signUp({
     email: normalizar(email),
     password: senha,
+    options: opcoes?.emailRedirectTo
+      ? { emailRedirectTo: opcoes.emailRedirectTo }
+      : undefined,
   });
 
   if (error) throw error;

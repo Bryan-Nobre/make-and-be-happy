@@ -1,16 +1,40 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoadingState } from "@/components/shared/loading-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  guardarConvitePendente,
+  limparConvitePendente,
+  lerConvitePendente,
+} from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
-import { PAPEL_LABEL } from "@/lib/permissoes";
+import { MODULOS_POR_PAPEL, PAPEL_LABEL, type ModuloKey, type Papel } from "@/lib/permissoes";
 import { useAuth } from "@/providers/auth";
 import { useEmpresa } from "@/providers/empresa";
 import { aceitarConvite, consultarConvite } from "@/services/convites";
+
+const ROTA_POR_MODULO: Partial<Record<ModuloKey, "/mesas" | "/pedidos" | "/cozinha" | "/caixa" | "/">> =
+  {
+    dashboard: "/",
+    pdv: "/pedidos",
+    mesas: "/mesas",
+    cozinha: "/cozinha",
+    caixa: "/caixa",
+  };
+
+function destinoAposConvite(papel: Papel | undefined): "/" | "/mesas" | "/pedidos" | "/cozinha" | "/caixa" {
+  if (!papel) return "/";
+  for (const modulo of MODULOS_POR_PAPEL[papel]) {
+    const rota = ROTA_POR_MODULO[modulo];
+    if (rota) return rota;
+  }
+  return "/";
+}
 
 export const Route = createFileRoute("/aceitar-convite")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -26,10 +50,20 @@ export const Route = createFileRoute("/aceitar-convite")({
 });
 
 function AceitarConvite() {
-  const { token } = Route.useSearch();
+  const search = Route.useSearch();
+  const token = search.token || lerConvitePendente() || "";
   const navigate = useNavigate();
   const { usuario, carregando: carregandoAuth } = useAuth();
   const { selecionarEmpresa, recarregar } = useEmpresa();
+
+  useEffect(() => {
+    if (search.token) guardarConvitePendente(search.token);
+  }, [search.token]);
+
+  useEffect(() => {
+    if (search.token || !token) return;
+    void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
+  }, [search.token, token, navigate]);
 
   const convite = useQuery({
     queryKey: ["convite", token],
@@ -41,10 +75,16 @@ function AceitarConvite() {
   const aceitar = useMutation({
     mutationFn: () => aceitarConvite(token),
     onSuccess: (empresaId) => {
+      limparConvitePendente();
       selecionarEmpresa(empresaId);
       recarregar();
-      toast.success("Convite aceito. Bem-vindo à equipe.");
-      void navigate({ to: "/", replace: true });
+      const papel = convite.data?.papel;
+      toast.success(
+        papel
+          ? `Convite aceito. Você entrou como ${PAPEL_LABEL[papel]}.`
+          : "Convite aceito. Bem-vindo à equipe.",
+      );
+      void navigate({ to: destinoAposConvite(papel), replace: true });
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });

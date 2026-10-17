@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { guardarConvitePendente, lerConvitePendente } from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useAuth } from "@/providers/auth";
 import { entrar } from "@/services/auth";
@@ -52,10 +53,15 @@ function Login() {
   });
 
   useEffect(() => {
+    if (convite) guardarConvitePendente(convite);
+  }, [convite]);
+
+  useEffect(() => {
     if (carregando || !usuario) return;
 
-    if (convite) {
-      void navigate({ to: "/aceitar-convite", search: { token: convite }, replace: true });
+    const token = convite || lerConvitePendente();
+    if (token) {
+      void navigate({ to: "/aceitar-convite", search: { token }, replace: true });
       return;
     }
 
@@ -64,6 +70,7 @@ function Login() {
 
   const enviar = form.handleSubmit(async (valores) => {
     try {
+      if (convite) guardarConvitePendente(convite);
       await entrar(valores.email, valores.senha);
     } catch (erro) {
       toast.error(mensagemDeErro(erro));
