@@ -1,6 +1,6 @@
 # Roadmap do ARVON FOOD
 
-Status de cada fase, em sequência. A visão de produto completa está no [PRD](./prd.md) (seção 35).
+Status de cada fase, em sequência. A visão de produto completa está no [PRD](./prd.md) (seção 35). Para um relato legível do que já existe, o que falta e como as integrações externas devem funcionar, ver [status do produto](./status-do-produto.md).
 
 Legenda: ✅ concluído · 🟡 parcial · ⏳ próximo passo · ⬜ não iniciado
 
