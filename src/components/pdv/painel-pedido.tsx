@@ -1,12 +1,16 @@
 import { Link } from "@tanstack/react-router";
-import { Plus, Receipt, Store, UtensilsCrossed, Wallet } from "lucide-react";
+import { Plus, Printer, Receipt, Store, UtensilsCrossed, Wallet } from "lucide-react";
+import { toast } from "sonner";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePedido } from "@/hooks/use-pedidos";
+import { mensagemDeErro } from "@/lib/erros";
 import { brl, time } from "@/lib/format";
+import { imprimirComandaDoPedido, imprimirReciboPedido } from "@/lib/impressao";
+import { useEmpresaAtual } from "@/providers/empresa";
 import type { PedidoDetalhado } from "@/services/pedidos";
 
 import { aguardandoPagamento, numeroPedido, STATUS_OPERACIONAL, STATUS_PAGAMENTO } from "./status";
@@ -31,6 +35,7 @@ export function PainelPedido({
   aoAdicionarNaComanda: (comandaId: string) => void;
   aoNovoPedido: () => void;
 }) {
+  const { empresa } = useEmpresaAtual();
   const pedido = usePedido(pedidoId);
 
   if (pedido.isPending) return <PainelCarregando />;
@@ -48,6 +53,7 @@ export function PainelPedido({
   }
 
   const p = pedido.data;
+  const podeImprimirRecibo = p.status !== "CANCELLED" && p.total > 0;
   const operacional = STATUS_OPERACIONAL[p.status];
   const pagamento = STATUS_PAGAMENTO[p.statusFinanceiro];
   const saldo = Math.max(0, p.total - p.valorPago);
@@ -205,6 +211,41 @@ export function PainelPedido({
             ))}
           {!naMesa && aguardandoPagamento(p) && !podeReceber && (
             <p className="text-xs text-muted-foreground">O pagamento é recebido no Caixa.</p>
+          )}
+
+          {p.status !== "CANCELLED" && p.status !== "DRAFT" && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                try {
+                  imprimirComandaDoPedido(p, empresa);
+                } catch (erro) {
+                  toast.error(mensagemDeErro(erro));
+                }
+              }}
+            >
+              <Printer aria-hidden="true" />
+              Imprimir comanda
+            </Button>
+          )}
+          {podeImprimirRecibo && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                try {
+                  imprimirReciboPedido(p, empresa);
+                } catch (erro) {
+                  toast.error(mensagemDeErro(erro));
+                }
+              }}
+            >
+              <Printer aria-hidden="true" />
+              Imprimir recibo
+            </Button>
           )}
 
           {naMesa && comandaAberta && p.comandaId && (

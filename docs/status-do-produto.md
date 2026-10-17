@@ -2,15 +2,15 @@
 
 Documento para alinhar o que já existe, como funciona no dia a dia e o que ainda falta — em especial as integrações com coisas de fora do sistema (impressora, maquininha, iFood, etc.).
 
-Última atualização: outubro/2026  
+Última atualização: 17/10/2026  
 Complementa o [PRD](./prd.md) e o [roadmap](./roadmap.md).
 
 ---
 
 ## Em uma frase
 
-O Arvon Food já cobre a **operação do restaurante** (venda, mesa, cozinha, caixa, estoque, equipe).  
-Ainda **não** imprime recibo sozinho, **não** fala com maquininha/NF-e e **não** importa pedidos do iFood/WhatsApp — isso entra nas próximas versões.
+O Arvon Food já cobre a **operação do restaurante** (venda, mesa, cozinha, caixa, estoque, equipe) e permite **imprimir comanda e recibo pelo navegador**.  
+Ainda **não** fala com maquininha/NF-e e **não** importa pedidos do iFood/WhatsApp — isso entra nas próximas versões.
 
 ---
 
@@ -52,8 +52,9 @@ Cada restaurante é uma **empresa** isolada. Quem entra é **membro** com um per
 | PDV / Pedidos | Monta pedido no balcão ou liga a uma mesa, envia à cozinha, cobra | Pedido com estado operacional + estado financeiro separados |
 | Balcão | Pode informar **nome para chamar** | Campo `identificacao` no pedido |
 | Mesas e comandas | Abre mesa → comanda → pedidos; pede conta; transferir comanda para outra mesa | Uma mesa só com uma comanda aberta; regras no banco |
-| Cozinha (KDS) | Filas por setor; avança status (preparando → pronto…) | Realtime por empresa; telas atualizam quase ao vivo |
+| Cozinha (KDS) | Filas por setor; avança status; **Imprimir comanda** no ticket | Realtime por empresa; telas atualizam quase ao vivo |
 | Caixa | Abre/fecha sessão, sangria, suprimento, recebe (parcial / vários métodos) | Pagamento + movimentação juntos; saldo vem das movimentações, não de “digitar o total” |
+| Impressão (navegador) | Botões **Imprimir comanda** / **Imprimir recibo** abrem a impressão do sistema | Layout 80mm em HTML; o usuário escolhe a impressora (térmica ou normal). **Não é cupom fiscal** |
 
 ### Cadastros e gestão
 
@@ -79,7 +80,7 @@ Cada restaurante é uma **empresa** isolada. Quem entra é **membro** com um per
 
 | Item | Situação | Comentário |
 | ---- | -------- | ---------- |
-| Impressão de recibos / comandas | **Não iniciado no código** | O roadmap ainda cita “código pronto”; na prática ainda não há tela/serviço de impressão. Ver seção de integrações. |
+| Impressão automática em térmica (sem diálogo) | Não feito | Hoje: botão + diálogo do navegador. Próximo passo no 1º cliente: agente local ESC/POS. |
 | Mover pedidos entre comandas / juntar mesas | Não feito | Transferir a **comanda inteira** de mesa já existe; falta mover itens ou unir mesas. |
 | Balcão “senha para chamar” | Só o **nome** | Roadmap menciona nome/senha; senha de chamada ainda não existe. |
 | Convite por e-mail | Não envia | Fluxo atual = link + WhatsApp manual. E-mail real exigiria provedor (ex.: Resend) + função no servidor. |
@@ -96,26 +97,33 @@ Fora do escopo atual (de propósito, para não virar ERP cedo demais): compras, 
 
 Esta é a parte que mais depende de **aparelhos e serviços de fora**. A ideia do produto é: o Arvon Food continua sendo o “cérebro” da operação; as máquinas e apps entram como **canais** ou **impressoras**, sem o usuário ter que digitar a mesma coisa duas vezes.
 
-### 1. Impressora de recibo / comanda (próximo passo operacional)
+### 1. Impressora de recibo / comanda
 
-**Para o restaurante**
+**O que já funciona hoje (pelo navegador)**
 
-- Ao confirmar pedido na cozinha ou ao pagar, o sistema manda imprimir:
-  - comanda da cozinha (itens, mesa/nome, observações);
-  - recibo do cliente (itens, total, forma de pagamento).
-- Em geral é impressora **térmica** USB, rede ou Bluetooth no caixa/cozinha.
-- No primeiro cliente, a expectativa é: configurar a impressora uma vez e o fluxo “pedido → papel” virar automático (ou um botão claro “Imprimir”).
+| Onde | Botão | Para quê |
+| ---- | ----- | -------- |
+| **Cozinha** (cada ticket) | Imprimir comanda | Papel da produção: itens, mesa/nome, observações — **sem preços** |
+| **Pedidos / PDV** (painel do pedido) | Imprimir comanda / Imprimir recibo | Comanda para a cozinha ou recibo com totais para o cliente |
+| **Mesas** (comanda aberta) | Imprimir recibo | Conta da mesa com itens consolidados e totais |
+
+**Como usar na operação**
+
+1. Clique em **Imprimir…**
+2. Abre uma janela com o cupom e o diálogo de impressão do sistema (Windows/celular).
+3. Escolha a impressora (térmica 80mm ou qualquer outra) e confirme.
+4. Se o navegador bloquear pop-up, permita pop-ups no site do Arvon Food.
+
+**O que ainda não é**
+
+- Não é **NFC-e / cupom fiscal** (documento para a SEFAZ).
+- Não imprime **sozinho** sem clicar (automação ESC/POS no PC do caixa fica para o 1º cliente com térmica dedicada).
 
 **Por baixo dos panos (leve)**
 
-- O navegador sozinho não controla bem impressora térmica em todos os ambientes.
-- Caminhos comuns:
-  - **agente local** no PC do caixa (pequeno programa que recebe o job e manda para a impressora);
-  - ou serviço de impressão em nuvem + driver no local;
-  - layout do cupom gerado a partir do pedido/pagamento já gravados no servidor (fonte da verdade).
-- Relatórios fiscais **não** são a mesma coisa que recibo interno — ver NFC-e abaixo.
-
-**Status hoje:** planejado na V1.1; **ainda sem implementação no app**.
+- O app monta um HTML estreito (estilo bobina) e chama `window.print()`.
+- Os dados vêm do pedido/comanda já gravados no servidor (fonte da verdade).
+- Evolução natural: agente local no caixa para mandar direto à térmica sem o diálogo.
 
 ---
 
@@ -220,10 +228,11 @@ Esta é a parte que mais depende de **aparelhos e serviços de fora**. A ideia d
 
 ```text
 HOJE (operação)
-  PDV · Mesas · Cozinha · Caixa · Estoque · Relatórios · Equipe · Offline parcial · Realtime
+  PDV · Mesas · Cozinha · Caixa · Estoque · Relatórios · Equipe
+  Offline parcial · Realtime · Impressão comanda/recibo (navegador)
 
 QUASE (V1.1 restante)
-  Impressão térmica · Juntar/mover mesas-pedidos
+  Juntar/mover mesas-pedidos · Impressão automática em térmica
 
 DEPOIS
   V1.2  Cardápio / QR

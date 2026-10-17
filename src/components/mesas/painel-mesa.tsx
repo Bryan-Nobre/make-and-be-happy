@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { ChefHat, CloudOff, Minus, Plus, UserRound } from "lucide-react";
+import { ChefHat, CloudOff, Minus, Plus, Printer, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { useConfirmacao } from "@/components/shared/confirmacao";
 import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
@@ -30,7 +31,9 @@ import {
   usePedidoMutations,
   usePedidosDaComanda,
 } from "@/hooks/use-pedidos";
+import { mensagemDeErro } from "@/lib/erros";
 import { brl, elapsed } from "@/lib/format";
+import { imprimirReciboComanda } from "@/lib/impressao";
 import { STATUS_MESA, STATUS_PEDIDO } from "@/lib/labels";
 import { useConexao } from "@/lib/offline/conectividade";
 import {
@@ -471,7 +474,7 @@ function DetalheComanda({
   aoTrocarMesa: (mesaId: string) => void;
   aoFechar: () => void;
 }) {
-  const { papel } = useEmpresaAtual();
+  const { empresa, papel } = useEmpresaAtual();
   const comanda = useComanda(comandaId);
   const pedidos = usePedidosDaComanda(comandaId);
   const acoes = useComandaMutations();
@@ -692,6 +695,39 @@ function DetalheComanda({
             {detalhada ? "Ver resumo" : "Ver comanda"}
           </Button>
         </div>
+
+        {c.total > 0 && itens.length > 0 && (
+          <Button
+            variant="outline"
+            className="h-11 w-full"
+            onClick={() => {
+              try {
+                imprimirReciboComanda({
+                  empresa,
+                  nomeMesa: c.nomeMesa ?? "Mesa",
+                  comandaNumero: c.numero,
+                  nomeCliente: c.nomeCliente,
+                  pessoas: c.pessoas,
+                  subtotal: c.subtotal,
+                  taxaServico: c.taxaServico,
+                  total: c.total,
+                  valorPago: c.valorPago,
+                  itens: itens.map((i) => ({
+                    quantidade: i.quantidade,
+                    nomeProduto: i.nome,
+                    total: i.total,
+                    adicionais: i.adicionais,
+                  })),
+                });
+              } catch (erro) {
+                toast.error(mensagemDeErro(erro));
+              }
+            }}
+          >
+            <Printer className="size-4" aria-hidden="true" />
+            Imprimir recibo
+          </Button>
+        )}
 
         {podeEncerrar && podeLiberar ? (
           <Button

@@ -54,7 +54,8 @@ Limitações conhecidas do offline:
 | Melhorias de operação — PDV rápido (busca sem acento, "Mais pedidos", atalhos)  | ✅     |
 | Melhorias de operação — Balcão com nome/senha para chamar                       | ✅     |
 | Melhorias de operação — Mover pedidos entre comandas / juntar mesas             | ⬜     |
-| Melhorias de operação — Impressão (código pronto; impressora no 1º cliente)     | ⬜     |
+| Melhorias de operação — Impressão pelo navegador (comanda/recibo)               | ✅     |
+| Melhorias de operação — Impressão automática em térmica (agente no 1º cliente)  | ⬜     |
 | Auditoria (aba em Relatórios com filtros, descrições e carregar mais)           | ✅     |
 | Realtime (hook único, canal por tela, recarga ao reconectar, eventos agrupados) | ✅     |
 

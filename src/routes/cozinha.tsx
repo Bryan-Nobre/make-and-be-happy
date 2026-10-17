@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock } from "lucide-react";
+import { Clock, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { ErrorState } from "@/components/shared/error-state";
@@ -10,9 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSetores } from "@/hooks/use-catalogo";
 import { usePainelCozinha, usePedidoMutations, useRealtimeCozinha } from "@/hooks/use-pedidos";
+import { mensagemDeErro } from "@/lib/erros";
 import { minutesSince, time } from "@/lib/format";
+import { imprimirComandaCozinha } from "@/lib/impressao";
 import { useConexao } from "@/lib/offline/conectividade";
 import { cn } from "@/lib/utils";
+import { useEmpresaAtual } from "@/providers/empresa";
 import type { StatusPedido, TicketCozinha } from "@/services/pedidos";
 
 export const Route = createFileRoute("/cozinha")({
@@ -297,6 +301,7 @@ function Ticket({
   ocupado: boolean;
   aoAvancar: () => void;
 }) {
+  const { empresa } = useEmpresaAtual();
   const minutos = minutesSince(ticket.enviadoEm);
   const atrasado = ticket.status !== "READY" && minutos >= ATRASO_MIN;
   const atencao = ticket.status !== "READY" && minutos >= ATENCAO_MIN && !atrasado;
@@ -368,7 +373,22 @@ function Ticket({
         </div>
       )}
 
-      <div className="mt-4 border-t border-border/60 pt-4">
+      <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            try {
+              imprimirComandaCozinha(ticket, empresa);
+            } catch (erro) {
+              toast.error(mensagemDeErro(erro));
+            }
+          }}
+        >
+          <Printer className="size-3.5" aria-hidden="true" />
+          Imprimir comanda
+        </Button>
         <Button
           size="operational"
           className="w-full tracking-wide uppercase"

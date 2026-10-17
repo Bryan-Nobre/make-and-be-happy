@@ -50,6 +50,7 @@ const GUIAS: Guia[] = [
       "Em Pedidos, toque em Novo pedido.",
       "Escolha os produtos, os adicionais e, se quiser, o cliente.",
       "Envie para a cozinha ou receba na hora, com o caixa aberto.",
+      "No painel do pedido, use Imprimir comanda ou Imprimir recibo se precisar de papel.",
     ],
     link: { rotulo: "Ir para Pedidos", to: "/pedidos", modulos: ["pdv"] },
   },
@@ -59,7 +60,7 @@ const GUIAS: Guia[] = [
     passos: [
       "Em Mesas, toque em uma mesa livre e abra a comanda.",
       "Na comanda, use Lançar pedido no PDV para adicionar itens.",
-      "Ao final, feche a conta e receba o pagamento.",
+      "Ao final, feche a conta, receba o pagamento e, se quiser, Imprimir recibo.",
     ],
     link: { rotulo: "Ir para Mesas", to: "/mesas", modulos: ["mesas"] },
   },
@@ -69,7 +70,7 @@ const GUIAS: Guia[] = [
     passos: [
       "Os pedidos enviados aparecem na fila da Cozinha em tempo real.",
       "Filtre por setor para ver só o que cada praça prepara.",
-      "Avance o pedido para Em preparo e depois para Pronto.",
+      "Use Imprimir comanda no ticket e avance para Em preparo / Pronto.",
     ],
     link: { rotulo: "Ir para Cozinha", to: "/cozinha", modulos: ["cozinha"] },
   },
