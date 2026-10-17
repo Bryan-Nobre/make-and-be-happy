@@ -164,7 +164,10 @@ export function usePainelCozinha(setorId?: string | null) {
   return useQuery({
     queryKey: [...chaves.painelCozinha(empresa.id), setorId ?? "todos"],
     queryFn: () => servico.listarPainelCozinha(empresa.id, setorId),
-    refetchInterval: INTERVALO_RESERVA_MS,
+    // Offline: não fica batendo no servidor a cada 30s (isso virava erro e
+    // escondia o último painel salvo no aparelho).
+    refetchInterval: () =>
+      estadoConexao() === "OFFLINE" ? false : INTERVALO_RESERVA_MS,
   });
 }
 

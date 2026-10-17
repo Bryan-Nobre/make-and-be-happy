@@ -1,6 +1,7 @@
 import {
   dehydrate,
   hydrate,
+  onlineManager,
   type DehydratedState,
   type QueryClient,
   type QueryKey,
@@ -89,9 +90,11 @@ export async function restaurarConsultas(
   hydrate(queryClient, { mutations: [], queries });
 
   const restauradas = new Set(queries.map((q) => q.queryHash));
+  // Offline: só marca como velho — um refetch agora falharia e a UI tratava
+  // como erro, apagando o painel (ex.: cozinha vazia). Online: atualiza.
   await queryClient.invalidateQueries({
     predicate: (q) => restauradas.has(q.queryHash),
-    refetchType: "active",
+    refetchType: onlineManager.isOnline() ? "active" : "none",
   });
 }
 

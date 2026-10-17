@@ -94,9 +94,9 @@ function Mesas() {
         description="Visualize o salão e acompanhe as comandas em tempo real."
       />
 
-      {mesas.isPending ? (
+      {mesas.isPending && !mesas.data ? (
         <LoadingState label="Carregando mesas…" />
-      ) : mesas.isError ? (
+      ) : mesas.isError && !mesas.data ? (
         <ErrorState
           description="Não foi possível carregar as mesas."
           onRetry={() => void mesas.refetch()}

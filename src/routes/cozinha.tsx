@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSetores } from "@/hooks/use-catalogo";
 import { usePainelCozinha, usePedidoMutations, useRealtimeCozinha } from "@/hooks/use-pedidos";
 import { minutesSince, time } from "@/lib/format";
+import { useConexao } from "@/lib/offline/conectividade";
 import { cn } from "@/lib/utils";
 import type { StatusPedido, TicketCozinha } from "@/services/pedidos";
 
@@ -84,6 +85,7 @@ const rotuloPedidos = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
 function Cozinha() {
   useRealtimeCozinha();
   useRelogio(30_000);
+  const conexao = useConexao();
   const busca = Route.useSearch();
   const navigate = Route.useNavigate();
   const setores = useSetores();
@@ -92,9 +94,14 @@ function Cozinha() {
   const painel = usePainelCozinha(setor);
   const { avancar } = usePedidoMutations();
   const [etapa, setEtapa] = useState<StatusPedido>("CONFIRMED");
+  // Offline: se a atualização falhar mas ainda houver cache, mantém o painel.
+  const painelSalvo = painel.data;
+  const semPainel = !painelSalvo && (painel.isPending || painel.isError);
+  const mostrandoCache =
+    !!painelSalvo && (conexao === "OFFLINE" || (painel.isError && !painel.isFetching));
 
   const ticketsDa = (status: StatusPedido) =>
-    (painel.data ?? [])
+    (painelSalvo ?? [])
       .filter((t) => t.status === status)
       .sort((a, b) => a.enviadoEm.localeCompare(b.enviadoEm));
 
@@ -104,17 +111,24 @@ function Cozinha() {
         title="Cozinha"
         description="Pedidos em produção"
         actions={
-          painel.data && (
+          painelSalvo && (
             <span className="flex h-8 items-center gap-2 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground">
               <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
               <span className="font-semibold text-foreground tabular-nums">
-                {painel.data.length}
+                {painelSalvo.length}
               </span>
               em produção
             </span>
           )
         }
       />
+
+      {mostrandoCache && (
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Sem conexão — mostrando o último painel salvo neste aparelho. Novos pedidos e mudar
+          status (Começar / Finalizar / Entregar) precisam de internet.
+        </p>
+      )}
 
       {ativos.length > 0 && (
         <div
@@ -146,9 +160,9 @@ function Cozinha() {
         </div>
       )}
 
-      {painel.isError ? (
+      {semPainel && painel.isError ? (
         <ErrorState
-          description="Não foi possível carregar o painel da cozinha."
+          description="Não foi possível carregar o painel da cozinha. Abra esta tela com internet uma vez para ela funcionar offline."
           onRetry={() => void painel.refetch()}
           className="py-8"
         />

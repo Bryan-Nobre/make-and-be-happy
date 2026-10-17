@@ -41,7 +41,7 @@ Legenda: ✅ concluído · 🟡 parcial · ⏳ próximo passo · ⬜ não inicia
 
 Limitações conhecidas do offline:
 
-- A cozinha (em qualquer aparelho, inclusive no mesmo) só mostra o pedido depois que o servidor o aceita.
+- A cozinha offline mostra o **último painel salvo** neste aparelho (abra a tela online antes). Pedidos novos e mudança de status só depois que o servidor aceita.
 - Mesa aberta offline recebe o horário de abertura do momento do envio.
 - Número do pedido, valor final e baixa de estoque só existem depois do envio (o servidor recalcula tudo).
 - Sair da conta sem internet não funciona (o Supabase exige rede).
