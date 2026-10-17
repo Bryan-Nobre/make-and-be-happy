@@ -10,15 +10,12 @@ function esc(texto: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Abre uma janela com o HTML e dispara a impressão do sistema (navegador). */
+/**
+ * Dispara a impressão do sistema sem abrir pop-up (iframe oculto).
+ * Evita o bloqueio de janelas que vários navegadores aplicam ao `window.open`.
+ */
 export function imprimirHtml(titulo: string, corpo: string): void {
-  const janela = window.open("", "_blank", "noopener,noreferrer,width=420,height=720");
-  if (!janela) {
-    throw new Error("O navegador bloqueou a janela de impressão. Permita pop-ups neste site.");
-  }
-
-  janela.document.open();
-  janela.document.write(`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
@@ -53,15 +50,62 @@ export function imprimirHtml(titulo: string, corpo: string): void {
 </head>
 <body>
   <div class="ticket">${corpo}</div>
-  <script>
-    window.onload = function () {
-      window.focus();
-      window.print();
-    };
-  </script>
 </body>
-</html>`);
-  janela.document.close();
+</html>`;
+
+  document.querySelectorAll("iframe[data-arvon-impressao]").forEach((el) => el.remove());
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("data-arvon-impressao", "1");
+  iframe.setAttribute("title", titulo);
+  iframe.setAttribute("aria-hidden", "true");
+  Object.assign(iframe.style, {
+    position: "fixed",
+    right: "0",
+    bottom: "0",
+    width: "0",
+    height: "0",
+    border: "0",
+    opacity: "0",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  const win = iframe.contentWindow;
+  if (!doc || !win) {
+    iframe.remove();
+    throw new Error("Não foi possível preparar a impressão neste navegador.");
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const limpar = () => {
+    win.removeEventListener("afterprint", limpar);
+    iframe.remove();
+  };
+  win.addEventListener("afterprint", limpar);
+
+  // Garante que o documento do iframe terminou de montar antes do diálogo.
+  const disparar = () => {
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      limpar();
+      throw new Error("Não foi possível abrir o diálogo de impressão.");
+    }
+    // Fallback se `afterprint` não existir (alguns mobile).
+    window.setTimeout(limpar, 60_000);
+  };
+
+  if (doc.readyState === "complete") {
+    window.setTimeout(disparar, 50);
+  } else {
+    iframe.addEventListener("load", () => window.setTimeout(disparar, 50), { once: true });
+  }
 }
 
 function cabecalhoEmpresa(empresa: Pick<Empresa, "nome" | "cnpj" | "telefone" | "endereco">): string {
