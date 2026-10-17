@@ -22,29 +22,41 @@ export function imprimirHtml(titulo: string, corpo: string): void {
   <title>${esc(titulo)}</title>
   <style>
     * { box-sizing: border-box; }
-    body {
+    /* Largura de bobina térmica (~80mm). Em A4 fica uma faixa estreita, não página inteira. */
+    @page {
+      size: 80mm auto;
+      margin: 3mm;
+    }
+    html, body {
       margin: 0;
-      padding: 12px;
-      font: 13px/1.35 ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+      padding: 0;
+      width: 72mm;
       color: #111;
       background: #fff;
+      font: 11px/1.3 ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    .ticket { max-width: 320px; margin: 0 auto; }
-    h1 { font-size: 16px; margin: 0 0 4px; text-align: center; }
-    h2 { font-size: 14px; margin: 12px 0 6px; text-align: center; letter-spacing: 0.04em; }
-    .muted { color: #444; font-size: 12px; text-align: center; }
-    .linha { border: 0; border-top: 1px dashed #999; margin: 10px 0; }
-    .meta { font-size: 12px; }
-    .meta div { display: flex; justify-content: space-between; gap: 8px; }
-    .item { margin: 8px 0; }
-    .item-topo { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
-    .sub { margin: 2px 0 0 1.2em; font-size: 12px; color: #333; }
-    .totais div { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
-    .totais .grande { font-size: 15px; font-weight: 700; margin-top: 6px; }
-    .rodape { margin-top: 14px; text-align: center; font-size: 11px; color: #555; }
+    .ticket {
+      width: 72mm;
+      max-width: 72mm;
+      margin: 0;
+      padding: 2mm;
+    }
+    h1 { font-size: 13px; margin: 0 0 2px; text-align: center; }
+    h2 { font-size: 12px; margin: 8px 0 4px; text-align: center; letter-spacing: 0.04em; }
+    .muted { color: #444; font-size: 10px; text-align: center; }
+    .linha { border: 0; border-top: 1px dashed #999; margin: 6px 0; }
+    .meta { font-size: 10px; }
+    .meta div { display: flex; justify-content: space-between; gap: 6px; }
+    .item { margin: 5px 0; }
+    .item-topo { display: flex; justify-content: space-between; gap: 6px; font-weight: 700; font-size: 11px; }
+    .sub { margin: 1px 0 0 0.8em; font-size: 10px; color: #333; }
+    .totais div { display: flex; justify-content: space-between; gap: 6px; margin: 2px 0; font-size: 11px; }
+    .totais .grande { font-size: 12px; font-weight: 700; margin-top: 4px; }
+    .rodape { margin-top: 8px; text-align: center; font-size: 9px; color: #555; }
     @media print {
-      body { padding: 0; }
-      .ticket { max-width: none; width: 72mm; }
+      html, body, .ticket { width: 72mm; max-width: 72mm; }
     }
   </style>
 </head>
