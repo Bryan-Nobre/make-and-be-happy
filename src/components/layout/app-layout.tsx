@@ -21,6 +21,7 @@ import { PainelPendencias } from "@/components/layout/painel-pendencias";
 import { RotaProtegida } from "@/components/layout/rota-protegida";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LogoEmpresa } from "@/components/shared/logo-empresa";
+import { LogoMarca } from "@/components/shared/logo-marca";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,16 +128,8 @@ function useSair() {
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-3 rounded-lg px-1 py-1">
-      <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-xs">
-        A
-      </span>
-      <span className="leading-none">
-        <span className="block text-base font-bold tracking-tight text-foreground">ARVON</span>
-        <span className="mt-1 block text-xs font-medium tracking-widest text-muted-foreground">
-          FOOD
-        </span>
-      </span>
+    <Link to="/" className="rounded-lg px-1 py-1">
+      <LogoMarca className="gap-3" tamanho="md" />
     </Link>
   );
 }
@@ -201,39 +194,137 @@ function Grupo({ titulo, children }: { titulo: string; children: ReactNode }) {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { saindo, sairDaConta } = useSair();
 
   return (
-    <nav aria-label="Navegação principal" className="flex h-full flex-col bg-sidebar">
+    <nav aria-label="Navegação principal" className="flex h-full min-h-0 flex-col bg-sidebar">
       <div className="flex h-16 shrink-0 items-center px-5">
         <Brand />
       </div>
-      <div className="flex-1 overflow-y-auto px-3 pt-6 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-4">
         <Grupo titulo="Operação">
           {OPERACAO.map((item) => (
             <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
           ))}
         </Grupo>
+
+        {/* No desktop o rodapé de sistema fica abaixo; no mobile tudo entra neste scroll. */}
+        <div className="mt-6 lg:hidden">
+          <Grupo titulo="Sistema">
+            {SISTEMA.map((item) => (
+              <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+            ))}
+          </Grupo>
+          <ContaMobile onNavigate={onNavigate} />
+        </div>
       </div>
-      <div className="shrink-0 px-3 pt-4 pb-5">
+
+      <div className="hidden shrink-0 px-3 pt-4 pb-5 lg:block">
         <Grupo titulo="Sistema">
           {SISTEMA.map((item) => (
             <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
           ))}
           <li>
-            <button
-              type="button"
-              disabled={saindo}
-              onClick={() => void sairDaConta()}
-              className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
-            >
-              <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
-              <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
-            </button>
+            <SairBotao />
           </li>
         </Grupo>
       </div>
     </nav>
+  );
+}
+
+function SairBotao() {
+  const { saindo, sairDaConta } = useSair();
+  return (
+    <button
+      type="button"
+      disabled={saindo}
+      onClick={() => void sairDaConta()}
+      className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
+    >
+      <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
+      <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
+    </button>
+  );
+}
+
+/** Conta, caixa e troca de restaurante — só no drawer mobile. */
+function ContaMobile({ onNavigate }: { onNavigate?: () => void }) {
+  const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa, podeVer } = useEmpresa();
+  const { saindo, sairDaConta } = useSair();
+
+  return (
+    <div className="mt-6 space-y-3 border-t border-border/60 pt-4">
+      {empresa && (
+        <div className="flex items-center gap-2.5 px-3">
+          <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-8" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{empresa.nome}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {nomeUsuario}
+              {papel ? ` · ${PAPEL_LABEL[papel]}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {podeVer("caixa") && (
+        <div className="px-3" onClick={onNavigate}>
+          <SeloCaixa />
+        </div>
+      )}
+
+      {vinculos.length > 1 && (
+        <div className="space-y-1.5">
+          <p className="px-3 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground/80 uppercase">
+            Restaurante
+          </p>
+          <ul className="flex flex-col gap-1">
+            {vinculos.map((vinculo) => {
+              const ativo = vinculo.empresa.id === empresa?.id;
+              return (
+                <li key={vinculo.empresa.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      selecionarEmpresa(vinculo.empresa.id);
+                      onNavigate?.();
+                    }}
+                    className={cn(
+                      ITEM,
+                      ativo
+                        ? "bg-primary-soft text-primary-strong"
+                        : "text-foreground/75 hover:bg-muted/70",
+                      "cursor-pointer",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-left">
+                      {vinculo.empresa.nome}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {PAPEL_LABEL[vinculo.papel]}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <ul className="flex flex-col gap-1.5">
+        <li>
+          <button
+            type="button"
+            disabled={saindo}
+            onClick={() => void sairDaConta()}
+            className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
+          >
+            <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
+            <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
+          </button>
+        </li>
+      </ul>
+    </div>
   );
 }
 
@@ -334,34 +425,36 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
   const label = pagina.titulo;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh overflow-x-hidden bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-[280px] flex-col border-r bg-sidebar lg:flex">
         <SidebarContent />
       </aside>
 
-      <div className="lg:pl-[280px]">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-card px-4 md:px-6 lg:px-8">
+      <div className="min-w-0 lg:pl-[280px]">
+        <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-card px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6 lg:px-8">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="-ml-2 size-11 lg:hidden">
+              <Button variant="ghost" size="icon" className="-ml-1 size-11 shrink-0 lg:hidden">
                 <Menu className="size-5" aria-hidden="true" />
                 <span className="sr-only">Abrir menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] gap-0 bg-sidebar p-0">
+            <SheetContent
+              side="left"
+              className="w-[min(280px,100vw)] max-w-full gap-0 overflow-x-hidden bg-sidebar p-0"
+            >
               <SheetTitle className="sr-only">Navegação</SheetTitle>
               <SidebarContent onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
 
-          <p className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+          {/* No mobile o título fica só no menu; no desktop mostra o caminho da página. */}
+          <p className="hidden min-w-0 flex-1 items-center gap-2 text-sm lg:flex">
             {empresa && (
               <>
                 <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-7" />
-                <span className="hidden truncate text-muted-foreground sm:inline">
-                  {empresa.nome}
-                </span>
-                <span aria-hidden="true" className="hidden text-border sm:inline">
+                <span className="truncate text-muted-foreground">{empresa.nome}</span>
+                <span aria-hidden="true" className="text-border">
                   /
                 </span>
               </>
@@ -370,11 +463,11 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
               <>
                 <Link
                   to={pagina.pai.to}
-                  className="hidden truncate text-muted-foreground transition-colors hover:text-foreground md:inline"
+                  className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {pagina.pai.titulo}
                 </Link>
-                <span aria-hidden="true" className="hidden text-border md:inline">
+                <span aria-hidden="true" className="text-border">
                   /
                 </span>
               </>
@@ -382,15 +475,18 @@ function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children
             <span className="truncate font-medium text-foreground">{label}</span>
           </p>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
             <IndicadorConexao />
             <PainelPendencias />
-            {empresa && podeVer("caixa") && <SeloCaixa />}
-            <UserMenu />
+            {/* Caixa e conta só no header do desktop; no celular ficam no hamburger. */}
+            <div className="hidden items-center gap-2 lg:flex">
+              {empresa && podeVer("caixa") && <SeloCaixa />}
+              <UserMenu />
+            </div>
           </div>
         </header>
 
-        <main className="mx-auto w-full px-4 py-6 md:px-6 lg:w-[90%] lg:px-0">
+        <main className="mx-auto w-full max-w-full min-w-0 overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:w-[90%] lg:px-0">
           {allowed ? children : <PermissionDenied label={label} />}
         </main>
       </div>

@@ -3,6 +3,7 @@ import { Banknote, CreditCard, QrCode, Receipt, Wallet } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
+import { ControlesPagina } from "@/components/shared/controles-pagina";
 import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -33,6 +34,7 @@ import {
   useRealtimeCaixa,
   useSessaoAberta,
 } from "@/hooks/use-caixa";
+import { usePaginaLista } from "@/hooks/use-pagina-lista";
 import { brl, dateTime, time } from "@/lib/format";
 import { TIPO_MOVIMENTACAO } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -384,6 +386,7 @@ function CaixaAberto({ sessao }: { sessao: SessaoCaixa }) {
 function AReceber({ className }: { className?: string }) {
   const pedidos = usePedidosAReceber();
   const [recebendo, setRecebendo] = useState<PedidoAReceber | null>(null);
+  const pagina = usePaginaLista(pedidos.data ?? []);
 
   return (
     <Secao titulo="Balcão a receber" className={className}>
@@ -394,32 +397,41 @@ function AReceber({ className }: { className?: string }) {
           description="Não foi possível carregar os pedidos a receber."
           onRetry={() => void pedidos.refetch()}
         />
-      ) : pedidos.data.length === 0 ? (
+      ) : pagina.totalItens === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">Nenhum pedido de balcão em aberto.</p>
       ) : (
-        <ul className="divide-y divide-border text-sm">
-          {pedidos.data.map((p) => {
-            const saldo = p.total - p.valorPago;
-            return (
-              <li key={p.id} className="flex items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-foreground">
-                    Pedido #{p.numero}
-                    {p.identificacao && ` · ${p.identificacao}`}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {time(p.criadoEm)}
-                    {p.valorPago > 0 && ` · pago ${brl(p.valorPago)} de ${brl(p.total)}`}
-                  </p>
-                </div>
-                <span className="font-semibold text-foreground tabular-nums">{brl(saldo)}</span>
-                <Button size="sm" onClick={() => setRecebendo(p)}>
-                  Receber
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-3">
+          <ul className="divide-y divide-border text-sm">
+            {pagina.fatia.map((p) => {
+              const saldo = p.total - p.valorPago;
+              return (
+                <li key={p.id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">
+                      Pedido #{p.numero}
+                      {p.identificacao && ` · ${p.identificacao}`}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {time(p.criadoEm)}
+                      {p.valorPago > 0 && ` · pago ${brl(p.valorPago)} de ${brl(p.total)}`}
+                    </p>
+                  </div>
+                  <span className="font-semibold text-foreground tabular-nums">{brl(saldo)}</span>
+                  <Button size="sm" onClick={() => setRecebendo(p)}>
+                    Receber
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+          <ControlesPagina
+            pagina={pagina.pagina}
+            totalPaginas={pagina.totalPaginas}
+            totalItens={pagina.totalItens}
+            tamanho={pagina.tamanho}
+            onMudar={pagina.setPagina}
+          />
+        </div>
       )}
 
       <DialogoPagamento
@@ -438,6 +450,7 @@ function Pagamentos({ sessaoId, className }: { sessaoId: string; className?: str
   const pagamentos = usePagamentos(sessaoId);
   const { estornar } = useCaixaMutations();
   const [estornando, setEstornando] = useState<PagamentoCaixa | null>(null);
+  const pagina = usePaginaLista(pagamentos.data ?? []);
 
   // Nota: controla apenas a interface; `estornar_pagamento` valida o papel.
   const podeEstornar = papel === "owner" || papel === "admin";
@@ -451,61 +464,70 @@ function Pagamentos({ sessaoId, className }: { sessaoId: string; className?: str
           description="Não foi possível carregar os pagamentos."
           onRetry={() => void pagamentos.refetch()}
         />
-      ) : pagamentos.data.length === 0 ? (
+      ) : pagina.totalItens === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">Nenhum pagamento nesta sessão.</p>
       ) : (
-        <ul className="divide-y divide-border text-sm">
-          {pagamentos.data.map((p) => (
-            <li
-              key={p.id}
-              className={cn(
-                "flex flex-wrap items-center gap-x-3 gap-y-1 py-3",
-                p.status === "ESTORNADO" && "opacity-70",
-              )}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground">
-                  {p.pedidoNumero !== null
-                    ? `Pedido #${p.pedidoNumero}`
-                    : `Comanda ${p.comandaNumero ?? ""}`}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {time(p.criadoEm)} · {METODO_LABEL[p.metodo]}
-                  {p.troco !== null && p.troco > 0 && ` · troco ${brl(p.troco)}`}
-                </p>
-              </div>
-              <span
+        <div className="space-y-3">
+          <ul className="divide-y divide-border text-sm">
+            {pagina.fatia.map((p) => (
+              <li
+                key={p.id}
                 className={cn(
-                  "font-semibold text-foreground tabular-nums",
-                  p.status === "ESTORNADO" && "line-through",
+                  "flex flex-wrap items-center gap-x-3 gap-y-1 py-3",
+                  p.status === "ESTORNADO" && "opacity-70",
                 )}
               >
-                {brl(p.valor)}
-              </span>
-              {p.status === "ESTORNADO" ? (
-                <StatusBadge tone="danger" className="w-fit">
-                  Estornado
-                </StatusBadge>
-              ) : (
-                podeEstornar && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive-soft hover:text-destructive"
-                    onClick={() => setEstornando(p)}
-                  >
-                    Estornar
-                  </Button>
-                )
-              )}
-              {p.motivoEstorno && (
-                <span className="basis-full text-xs text-muted-foreground">
-                  Motivo: {p.motivoEstorno}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">
+                    {p.pedidoNumero !== null
+                      ? `Pedido #${p.pedidoNumero}`
+                      : `Comanda ${p.comandaNumero ?? ""}`}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {time(p.criadoEm)} · {METODO_LABEL[p.metodo]}
+                    {p.troco !== null && p.troco > 0 && ` · troco ${brl(p.troco)}`}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "font-semibold text-foreground tabular-nums",
+                    p.status === "ESTORNADO" && "line-through",
+                  )}
+                >
+                  {brl(p.valor)}
                 </span>
-              )}
-            </li>
-          ))}
-        </ul>
+                {p.status === "ESTORNADO" ? (
+                  <StatusBadge tone="danger" className="w-fit">
+                    Estornado
+                  </StatusBadge>
+                ) : (
+                  podeEstornar && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+                      onClick={() => setEstornando(p)}
+                    >
+                      Estornar
+                    </Button>
+                  )
+                )}
+                {p.motivoEstorno && (
+                  <span className="basis-full text-xs text-muted-foreground">
+                    Motivo: {p.motivoEstorno}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <ControlesPagina
+            pagina={pagina.pagina}
+            totalPaginas={pagina.totalPaginas}
+            totalItens={pagina.totalItens}
+            tamanho={pagina.tamanho}
+            onMudar={pagina.setPagina}
+          />
+        </div>
       )}
 
       <DialogoMotivo
@@ -539,6 +561,7 @@ function Movimentacoes({
   className?: string;
 }) {
   const movimentacoes = useMovimentacoes(sessaoId);
+  const pagina = usePaginaLista(movimentacoes.data ?? []);
 
   return (
     <Secao
@@ -553,32 +576,43 @@ function Movimentacoes({
           description="Não foi possível carregar as movimentações."
           onRetry={() => void movimentacoes.refetch()}
         />
+      ) : pagina.totalItens === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">Nenhuma movimentação nesta sessão.</p>
       ) : (
-        <ul className="divide-y divide-border text-sm">
-          {movimentacoes.data.map((m) => {
-            const { label, saida } = TIPO_MOVIMENTACAO[m.tipo];
-            return (
-              <li key={m.id} className="flex items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">{label}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {time(m.criadoEm)}
-                    {m.descricao && ` · ${m.descricao}`}
-                    {m.tipo !== "ABERTURA" && ` · ${METODO_LABEL[m.metodo]}`}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 font-semibold tabular-nums",
-                    saida ? "text-destructive" : "text-success",
-                  )}
-                >
-                  {saida ? "−" : "+"} {brl(m.valor)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-3">
+          <ul className="divide-y divide-border text-sm">
+            {pagina.fatia.map((m) => {
+              const { label, saida } = TIPO_MOVIMENTACAO[m.tipo];
+              return (
+                <li key={m.id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground">{label}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {time(m.criadoEm)}
+                      {m.descricao && ` · ${m.descricao}`}
+                      {m.tipo !== "ABERTURA" && ` · ${METODO_LABEL[m.metodo]}`}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold tabular-nums",
+                      saida ? "text-destructive" : "text-success",
+                    )}
+                  >
+                    {saida ? "−" : "+"} {brl(m.valor)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <ControlesPagina
+            pagina={pagina.pagina}
+            totalPaginas={pagina.totalPaginas}
+            totalItens={pagina.totalItens}
+            tamanho={pagina.tamanho}
+            onMudar={pagina.setPagina}
+          />
+        </div>
       )}
     </Secao>
   );

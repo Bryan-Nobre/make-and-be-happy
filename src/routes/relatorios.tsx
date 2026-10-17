@@ -3,6 +3,7 @@ import { Ban, CircleCheck, DollarSign, Percent, Receipt, ShoppingBag } from "luc
 import { useState, type ReactNode } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
+import { AbaAuditoria } from "@/components/relatorios/aba-auditoria";
 import { ErrorState } from "@/components/shared/error-state";
 import { Indicador } from "@/components/shared/indicador";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  useAuditoria,
   useCancelamentos,
   useFormasPagamento,
   useProdutosVendidos,
@@ -30,7 +30,6 @@ import { METODO_LABEL } from "@/services/configuracoes";
 import { useItensEstoque } from "@/hooks/use-estoque";
 import { formatarNumeroQuantidade, formatarQuantidade, UNIDADE_LABEL } from "@/services/estoque";
 import { dataNoFuso, somarDias, type Periodo } from "@/services/relatorios";
-import type { Json } from "@/types/db";
 
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
@@ -623,99 +622,6 @@ function AbaEstoque({ periodo }: { periodo: Periodo }) {
           </Secao>
         </div>
       )}
-    </Carregando>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Auditoria
-// ---------------------------------------------------------------------------
-
-const ACAO_LABEL: Record<string, string> = {
-  "empresa.criada": "Empresa criada",
-  "empresa.atualizada": "Dados da empresa alterados",
-  "convite.criado": "Convite enviado",
-  "convite.cancelado": "Convite cancelado",
-  "convite.aceito": "Convite aceito",
-  "membro.papel_alterado": "Papel de membro alterado",
-  "membro.reativado": "Membro reativado",
-  "membro.desativado": "Membro desativado",
-  "produto.preco_alterado": "Preço alterado",
-  "produto.disponibilidade_alterada": "Disponibilidade alterada",
-  "produto.ficha_tecnica": "Ficha técnica alterada",
-  "pedido.cancelado": "Pedido cancelado",
-  "pedido.item_adicionado_apos_envio": "Item adicionado após envio",
-  "pedido.item_alterado_apos_envio": "Item alterado após envio",
-  "pedido.item_removido_apos_envio": "Item removido após envio",
-  "pedido.valores_aplicados": "Desconto/acréscimo aplicado",
-  "pedido.valores_alterados": "Desconto/acréscimo alterado",
-  "comanda.transferida": "Comanda transferida",
-  "comanda.cancelada": "Comanda cancelada",
-  "caixa.aberto": "Caixa aberto",
-  "caixa.fechado": "Caixa fechado",
-  "caixa.sangria": "Sangria",
-  "caixa.suprimento": "Suprimento",
-  "pagamento.registrado": "Pagamento registrado",
-  "pagamento.estornado": "Pagamento estornado",
-  "estoque.item_criado": "Item de estoque criado",
-  "estoque.ajuste": "Ajuste de estoque",
-  "estoque.saida_manual": "Saída manual de estoque",
-};
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Resumo legível dos dados auditados; sempre renderizado como texto. */
-function resumirDados(dados: Json | null): string {
-  if (dados === null || typeof dados !== "object" || Array.isArray(dados)) return "";
-  return Object.entries(dados)
-    .filter(
-      ([, v]) => v !== null && typeof v !== "object" && !(typeof v === "string" && UUID.test(v)),
-    )
-    .map(([k, v]) => {
-      const valor = typeof v === "number" ? v.toLocaleString("pt-BR") : String(v);
-      return `${k.replaceAll("_", " ")}: ${valor}`;
-    })
-    .join(" · ");
-}
-
-function AbaAuditoria({ periodo }: { periodo: Periodo }) {
-  const auditoria = useAuditoria(periodo);
-
-  return (
-    <Carregando consultas={[auditoria]}>
-      {auditoria.data &&
-        (auditoria.data.length === 0 ? (
-          <Secao titulo="Auditoria">
-            <Vazio>Nenhuma operação auditada no período.</Vazio>
-          </Secao>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Operações críticas registradas pelo banco (até 200 mais recentes).
-            </p>
-            <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm shadow-xs">
-              {auditoria.data.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:gap-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">{ACAO_LABEL[r.acao] ?? r.acao}</p>
-                    {resumirDados(r.dados) && (
-                      <p className="text-xs break-words text-muted-foreground">
-                        {resumirDados(r.dados)}
-                      </p>
-                    )}
-                  </div>
-                  <p className="shrink-0 text-xs text-muted-foreground sm:text-right">
-                    {r.usuario}
-                    <span className="block">{dateTime(r.criadoEm)}</span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
     </Carregando>
   );
 }

@@ -67,9 +67,14 @@ export function PainelPendencias() {
           ) : (
             <CloudOff className="size-3.5" aria-hidden="true" />
           )}
-          {fila.pendentes > 0
-            ? `${fila.pendentes} pendente${fila.pendentes > 1 ? "s" : ""}`
-            : "Sincronizado"}
+          {fila.pendentes > 0 ? (
+            <>
+              <span className="tabular-nums">{fila.pendentes}</span>
+              <span className="hidden sm:inline"> pendente{fila.pendentes > 1 ? "s" : ""}</span>
+            </>
+          ) : (
+            <span className="hidden sm:inline">Sincronizado</span>
+          )}
         </Button>
       </SheetTrigger>
       <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">

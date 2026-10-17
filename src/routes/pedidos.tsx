@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronUp, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -134,6 +134,28 @@ function Pedidos() {
       limparUrl();
     });
 
+  // Ctrl+Enter envia o pedido em montagem. Fica desligado com algum diálogo aberto.
+  const podeEnviarPeloTeclado =
+    !selecionadoId &&
+    carrinho.itens.length > 0 &&
+    !novo.enviando &&
+    !escolhendo &&
+    !escolhendoCliente &&
+    !cobrando;
+  const enviarRef = useRef(enviar);
+  enviarRef.current = enviar;
+  useEffect(() => {
+    if (!podeEnviarPeloTeclado) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return;
+      if (document.querySelector("[role='dialog'], [role='alertdialog']")) return;
+      e.preventDefault();
+      enviarRef.current(false);
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [podeEnviarPeloTeclado]);
+
   const painel = selecionadoId ? (
     <PainelPedido
       key={selecionadoId}
@@ -178,6 +200,7 @@ function Pedidos() {
           <FaixaPedidos pedidos={pedidos} selecionadoId={selecionadoId} aoSelecionar={selecionar} />
           <CatalogoPdv
             quantidadeDoProduto={carrinho.quantidadeDoProduto}
+            carrinhoVazio={carrinho.itens.length === 0}
             aoEscolher={escolherProduto}
             aoDiminuir={(produto) => {
               voltarAoRascunho();

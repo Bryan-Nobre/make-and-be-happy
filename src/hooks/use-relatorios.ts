@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { chaves } from "@/lib/chaves";
 import { useEmpresaAtual } from "@/providers/empresa";
@@ -76,8 +76,33 @@ export const useResumoEstoque = (periodo: servico.Periodo) =>
 export const useCancelamentos = (periodo: servico.Periodo) =>
   useRelatorio("cancelamentos", periodo, servico.listarCancelamentos);
 
-export const useAuditoria = (periodo: servico.Periodo) =>
-  useRelatorio("auditoria", periodo, servico.listarAuditoria);
+export function useAuditoria(filtros: servico.FiltrosAuditoria) {
+  const { empresa } = useEmpresaAtual();
+  const { periodo, categoria, usuarioId } = filtros;
+
+  return useInfiniteQuery({
+    queryKey: [
+      ...chaves.relatorios(empresa.id, periodo.inicio, periodo.fim),
+      "auditoria",
+      categoria ?? "todas",
+      usuarioId ?? "todos",
+    ],
+    queryFn: ({ pageParam }) => servico.listarAuditoria(empresa.id, filtros, pageParam),
+    initialPageParam: null as number | null,
+    getNextPageParam: (ultima) =>
+      ultima.length < servico.TAMANHO_PAGINA_AUDITORIA ? undefined : ultima.at(-1)?.id,
+  });
+}
+
+export function useAutoresAuditoria() {
+  const { empresa } = useEmpresaAtual();
+
+  return useQuery({
+    queryKey: [...chaves.membros(empresa.id), "autores"],
+    queryFn: () => servico.listarAutoresAuditoria(empresa.id),
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 export const useSessoesNoPeriodo = (periodo: servico.Periodo) =>
   useRelatorio("caixa", periodo, (empresaId, p) => {

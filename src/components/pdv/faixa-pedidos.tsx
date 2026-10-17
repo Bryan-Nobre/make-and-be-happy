@@ -20,11 +20,17 @@ import {
 
 type Filtro = "TODOS" | "ANDAMENTO" | "PAGAMENTO" | "FINALIZADOS";
 
-const FILTROS: { id: Filtro; label: string; aplica: (p: PedidoDoDia) => boolean }[] = [
-  { id: "TODOS", label: "Todos", aplica: () => true },
-  { id: "ANDAMENTO", label: "Em andamento", aplica: emAndamento },
-  { id: "PAGAMENTO", label: "Aguardando pagamento", aplica: aguardandoPagamento },
-  { id: "FINALIZADOS", label: "Finalizados", aplica: finalizado },
+const FILTROS: {
+  id: Filtro;
+  label: string;
+  /** Texto curto para caber no celular. */
+  curto: string;
+  aplica: (p: PedidoDoDia) => boolean;
+}[] = [
+  { id: "TODOS", label: "Todos", curto: "Todos", aplica: () => true },
+  { id: "ANDAMENTO", label: "Em andamento", curto: "Andamento", aplica: emAndamento },
+  { id: "PAGAMENTO", label: "Aguardando pagamento", curto: "A pagar", aplica: aguardandoPagamento },
+  { id: "FINALIZADOS", label: "Finalizados", curto: "Finalizados", aplica: finalizado },
 ];
 
 /** Fundo do card por situação de produção, como na fila do salão. */
@@ -61,9 +67,9 @@ export function FaixaPedidos({
       <h2 id="titulo-faixa" className="sr-only">
         Pedidos de hoje
       </h2>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-start gap-2">
         <div
-          className="trilho -mx-1 flex min-w-0 flex-1 gap-2 overflow-x-auto px-1 py-0.5"
+          className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap"
           role="group"
           aria-label="Filtrar pedidos"
         >
@@ -75,18 +81,20 @@ export function FaixaPedidos({
                 key={f.id}
                 type="button"
                 aria-pressed={ativo}
+                aria-label={`${f.label}, ${total}`}
                 onClick={() => setFiltro(f.id)}
                 className={cn(
-                  "flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  "flex h-10 min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none sm:h-9 sm:w-auto sm:justify-center sm:rounded-full sm:px-3.5",
                   ativo
                     ? "border-primary/40 bg-primary-soft text-primary-strong"
                     : "border-border bg-card text-muted-foreground hover:text-foreground",
                 )}
               >
-                {f.label}
+                <span className="truncate sm:hidden">{f.curto}</span>
+                <span className="hidden sm:inline">{f.label}</span>
                 <span
                   className={cn(
-                    "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                    "flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
                     ativo ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
                   )}
                 >

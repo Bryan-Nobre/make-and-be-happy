@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCategorias, useGruposAdicionais, useProdutos, useSetores } from "@/hooks/use-catalogo";
 import { brl } from "@/lib/format";
@@ -129,17 +130,29 @@ export function CatalogoPdv({
   const carregando = produtos.isPending || categorias.isPending || grupos.isPending;
   const erro = produtos.isError || categorias.isError || grupos.isError;
 
+  const opcoesCategoria = [
+    { id: "todas", nome: "Todos", total: vendaveisNoCardapio.length },
+    ...(listaMaisPedidos.length > 0
+      ? [{ id: MAIS_PEDIDOS, nome: "Mais pedidos", total: listaMaisPedidos.length }]
+      : []),
+    ...categoriasAtivas.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      total: vendaveisNoCardapio.filter((p) => p.categoriaId === c.id).length,
+    })),
+  ];
+
   return (
     <div className="@container min-w-0 space-y-4">
-      <div className="relative">
+      <div className="relative min-w-0">
         <Search
           className="absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
           aria-hidden="true"
         />
         <Input
           ref={campoBusca}
-          className="h-11 rounded-lg bg-card pr-12 pl-10"
-          placeholder="Buscar produto por nome ou código..."
+          className="h-11 w-full min-w-0 rounded-lg bg-card pr-3 pl-10 md:pr-12"
+          placeholder="Buscar produto…"
           aria-label="Buscar produto por nome ou código"
           aria-keyshortcuts="/ F2"
           value={busca}
@@ -175,22 +188,28 @@ export function CatalogoPdv({
         />
       ) : (
         <>
+          {/* Celular: select simples. Desktop: chips com ícone. */}
+          <div className="min-w-0 sm:hidden">
+            <NativeSelect
+              id="categoria-pdv"
+              aria-label="Categoria"
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className="h-11 w-full rounded-lg"
+            >
+              {opcoesCategoria.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome} ({c.total})
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
           <div
-            className="trilho -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1"
+            className="trilho hidden min-w-0 gap-2.5 overflow-x-auto overscroll-x-contain py-1 sm:flex"
             role="group"
             aria-label="Categorias"
           >
-            {[
-              { id: "todas", nome: "Todos", total: vendaveisNoCardapio.length },
-              ...(listaMaisPedidos.length > 0
-                ? [{ id: MAIS_PEDIDOS, nome: "Mais pedidos", total: listaMaisPedidos.length }]
-                : []),
-              ...categoriasAtivas.map((c) => ({
-                id: c.id,
-                nome: c.nome,
-                total: vendaveisNoCardapio.filter((p) => p.categoriaId === c.id).length,
-              })),
-            ].map((c) => {
+            {opcoesCategoria.map((c) => {
               const ativa = categoria === c.id;
               const Icone =
                 c.id === "todas"
@@ -245,9 +264,9 @@ export function CatalogoPdv({
               }
             />
           ) : (
-            <ul className="grid grid-cols-2 gap-3 @lg:grid-cols-3 @4xl:grid-cols-4">
+            <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 @lg:grid-cols-3 @4xl:grid-cols-4">
               {lista.map((p) => (
-                <li key={p.id}>
+                <li key={p.id} className="min-w-0">
                   <CardProduto
                     produto={p}
                     categoria={nomeCategoria(p.categoriaId)}
@@ -286,7 +305,8 @@ function CardProduto({
   return (
     <div
       className={cn(
-        "flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-[border-color,box-shadow]",
+        // Celular: linha horizontal (foto + info). Telas maiores: card em coluna.
+        "flex overflow-hidden rounded-xl border bg-card shadow-xs transition-[border-color,box-shadow] sm:h-full sm:flex-col",
         quantidade > 0 ? "border-primary/60 ring-1 ring-primary/25" : "border-border",
         !disponivel && "opacity-60",
       )}
@@ -296,9 +316,9 @@ function CardProduto({
         disabled={!disponivel}
         onClick={aoEscolher}
         aria-label={`Adicionar ${p.nome}`}
-        className="group flex flex-1 cursor-pointer flex-col text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset disabled:cursor-not-allowed"
+        className="group flex min-w-0 flex-1 cursor-pointer items-stretch text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset disabled:cursor-not-allowed sm:flex-col"
       >
-        <span className="m-2 mb-0 block aspect-[4/3] overflow-hidden rounded-lg bg-muted/70">
+        <span className="m-2 size-20 shrink-0 overflow-hidden rounded-lg bg-muted/70 sm:mb-0 sm:aspect-[4/3] sm:h-auto sm:w-[calc(100%-1rem)] sm:self-center">
           {p.imagemUrl ? (
             <img
               src={p.imagemUrl}
@@ -308,33 +328,44 @@ function CardProduto({
             />
           ) : (
             <span className="flex size-full items-center justify-center text-muted-foreground">
-              <IconeProduto className="size-8" aria-hidden="true" />
+              <IconeProduto className="size-7 sm:size-8" aria-hidden="true" />
             </span>
           )}
         </span>
-        <span className="flex flex-1 flex-col gap-0.5 px-3 pt-2.5">
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2.5 pr-2 pl-0 sm:px-3 sm:pt-2.5 sm:pr-3 sm:pb-0">
           <span className="truncate text-xs text-muted-foreground">{categoria}</span>
           <span className="line-clamp-2 text-sm leading-snug font-semibold text-foreground">
             {p.nome}
           </span>
           {p.descricao.trim() && (
-            <span className="line-clamp-2 text-xs text-muted-foreground">{p.descricao}</span>
+            <span className="line-clamp-1 text-xs text-muted-foreground sm:line-clamp-2">
+              {p.descricao}
+            </span>
           )}
+          <span className="mt-1 sm:hidden">
+            {disponivel ? (
+              <span className="text-sm font-bold text-foreground tabular-nums">{brl(p.preco)}</span>
+            ) : (
+              <span className="text-xs font-medium text-muted-foreground">Indisponível</span>
+            )}
+          </span>
         </span>
       </button>
-      <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-3">
-        {disponivel ? (
-          <span className="text-sm font-bold text-foreground tabular-nums">{brl(p.preco)}</span>
-        ) : (
-          <span className="text-xs font-medium text-muted-foreground">Indisponível</span>
-        )}
-        <div className="flex items-center gap-1">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-l border-border/60 px-2.5 py-2 sm:flex-row sm:justify-between sm:gap-2 sm:border-l-0 sm:px-3 sm:pt-2 sm:pb-3">
+        <span className="hidden sm:inline">
+          {disponivel ? (
+            <span className="text-sm font-bold text-foreground tabular-nums">{brl(p.preco)}</span>
+          ) : (
+            <span className="text-xs font-medium text-muted-foreground">Indisponível</span>
+          )}
+        </span>
+        <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-1">
           <button
             type="button"
             onClick={aoDiminuir}
             disabled={quantidade === 0}
             aria-label={`Diminuir ${p.nome}`}
-            className="relative flex size-8 cursor-pointer items-center justify-center rounded-full border border-border after:absolute after:-inset-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+            className="relative flex size-9 cursor-pointer items-center justify-center rounded-full border border-border text-muted-foreground transition-colors after:absolute after:-inset-1.5 hover:bg-muted disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent sm:size-8"
           >
             <Minus className="size-3.5" aria-hidden="true" />
           </button>
@@ -347,7 +378,7 @@ function CardProduto({
             onClick={aoEscolher}
             disabled={!disponivel}
             aria-label={`Aumentar ${p.nome}`}
-            className="relative flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary after:absolute after:-inset-1.5 text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="relative flex size-9 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-colors after:absolute after:-inset-1.5 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 sm:size-8"
           >
             <Plus className="size-3.5" aria-hidden="true" />
           </button>

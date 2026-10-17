@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 import { limparTudo } from "@/lib/offline/banco";
 import { CHAVE_PREFERENCIA_EMPRESA } from "@/lib/offline/contexto";
+import { limparMaisPedidos } from "@/lib/pdv/mais-pedidos";
 import { supabase } from "@/lib/supabase";
 
 type EstadoAuth = {
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.clear();
         void limparTudo();
         window.localStorage.removeItem(CHAVE_PREFERENCIA_EMPRESA);
+        limparMaisPedidos();
         setEstado({ carregando: false, sessao: null, usuario: null });
         return;
       }

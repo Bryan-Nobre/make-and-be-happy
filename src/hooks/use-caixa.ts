@@ -1,13 +1,12 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { brl } from "@/lib/format";
 import { chaves } from "@/lib/chaves";
-import { supabase } from "@/lib/supabase";
 import { useEmpresaAtual } from "@/providers/empresa";
 import * as servico from "@/services/caixa";
 
 import { useMutacao } from "./use-mutacao";
+import { useRealtime } from "./use-realtime";
 
 const INTERVALO_RESERVA_MS = 30_000;
 
@@ -22,37 +21,13 @@ const INTERVALO_RESERVA_MS = 30_000;
  */
 export function useRealtimeCaixa() {
   const { empresa } = useEmpresaAtual();
-  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const filtro = `empresa_id=eq.${empresa.id}`;
-    const invalidar = () => {
-      void queryClient.invalidateQueries({ queryKey: chaves.caixa(empresa.id) });
-    };
-
-    const canal = supabase
-      .channel(`caixa:${empresa.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "sessoes_caixa", filter: filtro },
-        invalidar,
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "movimentacoes_caixa", filter: filtro },
-        invalidar,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "pedidos", filter: filtro },
-        invalidar,
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [empresa.id, queryClient]);
+  useRealtime({
+    nome: "caixa",
+    empresaId: empresa.id,
+    tabelas: ["sessoes_caixa", "movimentacoes_caixa", "pedidos"],
+    invalidar: [chaves.caixa(empresa.id)],
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { LogoMarca } from "@/components/shared/logo-marca";
+
 export function AuthShell({
   titulo,
   descricao,
@@ -14,14 +16,8 @@ export function AuthShell({
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            A
-          </span>
-          <span className="leading-tight">
-            <span className="block text-sm font-bold tracking-tight">ARVON FOOD</span>
-            <span className="block text-xs text-muted-foreground">Gestão para restaurantes</span>
-          </span>
+        <div className="flex justify-center">
+          <LogoMarca />
         </div>
 
         <main className="mt-6 rounded-lg border bg-card p-6 shadow-sm">

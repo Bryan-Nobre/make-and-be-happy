@@ -309,45 +309,86 @@ export async function listarCancelamentos(
   }));
 }
 
+export type CategoriaAuditoria =
+  "pedidos" | "comandas" | "caixa" | "pagamentos" | "estoque" | "catalogo" | "equipe" | "empresa";
+
+/** Prefixo do nome da ação (`pedido.cancelado` → `pedido`) de cada categoria. */
+const PREFIXOS_CATEGORIA: Record<CategoriaAuditoria, string[]> = {
+  pedidos: ["pedido"],
+  comandas: ["comanda"],
+  caixa: ["caixa"],
+  pagamentos: ["pagamento"],
+  estoque: ["estoque"],
+  catalogo: ["produto"],
+  equipe: ["membro", "convite"],
+  empresa: ["empresa"],
+};
+
+export type FiltrosAuditoria = {
+  periodo: Periodo;
+  categoria: CategoriaAuditoria | null;
+  usuarioId: string | null;
+};
+
 export type RegistroAuditoria = {
   id: number;
   acao: string;
-  entidade: string;
   dados: Json | null;
-  usuario: string;
+  usuarioId: string | null;
   criadoEm: string;
 };
 
+export const TAMANHO_PAGINA_AUDITORIA = 50;
+
+/**
+ * Uma página da auditoria, da mais recente para a mais antiga. `antesDe` é o
+ * id do último registro já carregado. Só dono e admin leem a tabela (RLS);
+ * para os demais papéis o banco devolve a lista vazia.
+ */
 export async function listarAuditoria(
   empresaId: string,
-  periodo: Periodo,
+  filtros: FiltrosAuditoria,
+  antesDe: number | null,
 ): Promise<RegistroAuditoria[]> {
-  const { de, ate } = limitesDoPeriodo(periodo);
-  const [registros, membros] = await Promise.all([
-    supabase
-      .from("auditoria")
-      .select("id, acao, entidade, dados, usuario_id, criado_em")
-      .eq("empresa_id", empresaId)
-      .gte("criado_em", de)
-      .lt("criado_em", ate)
-      .order("criado_em", { ascending: false })
-      .limit(200),
-    supabase
-      .from("membros_empresa")
-      .select("usuario_id, nome_exibicao")
-      .eq("empresa_id", empresaId),
-  ]);
+  const { de, ate } = limitesDoPeriodo(filtros.periodo);
+  let consulta = supabase
+    .from("auditoria")
+    .select("id, acao, dados, usuario_id, criado_em")
+    .eq("empresa_id", empresaId)
+    .gte("criado_em", de)
+    .lt("criado_em", ate);
 
-  if (registros.error) throw registros.error;
-  if (membros.error) throw membros.error;
+  if (filtros.categoria) {
+    const prefixos = PREFIXOS_CATEGORIA[filtros.categoria];
+    consulta = consulta.or(prefixos.map((p) => `acao.like.${p}.*`).join(","));
+  }
+  if (filtros.usuarioId) consulta = consulta.eq("usuario_id", filtros.usuarioId);
+  if (antesDe !== null) consulta = consulta.lt("id", antesDe);
 
-  const nomes = new Map(membros.data.map((m) => [m.usuario_id, m.nome_exibicao]));
-  return registros.data.map((r) => ({
+  const { data, error } = await consulta
+    .order("id", { ascending: false })
+    .limit(TAMANHO_PAGINA_AUDITORIA);
+
+  if (error) throw error;
+  return data.map((r) => ({
     id: r.id,
     acao: r.acao,
-    entidade: r.entidade,
     dados: r.dados,
-    usuario: r.usuario_id ? (nomes.get(r.usuario_id) ?? "Ex-membro") : "Sistema",
+    usuarioId: r.usuario_id,
     criadoEm: r.criado_em,
   }));
+}
+
+export type AutorAuditoria = { usuarioId: string; nome: string; ativo: boolean };
+
+/** Membros da empresa, inclusive desativados, para nomear e filtrar os registros. */
+export async function listarAutoresAuditoria(empresaId: string): Promise<AutorAuditoria[]> {
+  const { data, error } = await supabase
+    .from("membros_empresa")
+    .select("usuario_id, nome_exibicao, ativo")
+    .eq("empresa_id", empresaId)
+    .order("nome_exibicao");
+
+  if (error) throw error;
+  return data.map((m) => ({ usuarioId: m.usuario_id, nome: m.nome_exibicao, ativo: m.ativo }));
 }
