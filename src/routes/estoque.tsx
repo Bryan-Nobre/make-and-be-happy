@@ -1,11 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeftRight, Boxes, PackageX, Pencil, Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Boxes, List, Plus, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import { AcoesBipagem } from "@/components/estoque/acoes-bipagem";
+import { DialogoFichaItem } from "@/components/estoque/dialogo-ficha-item";
+import { KpisEstoque, type FiltroKpiEstoque } from "@/components/estoque/kpis-estoque";
+import {
+  fatiaPagina,
+  INSUMOS_POR_PAGINA,
+  PaginacaoEstoque,
+} from "@/components/estoque/paginacao";
+import { TransacoesRecentes } from "@/components/estoque/transacoes-recentes";
 import { AppLayout } from "@/components/layout/app-layout";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { Indicador } from "@/components/shared/indicador";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +30,11 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEstoqueMutations, useItensEstoque, useMovimentacoesEstoque } from "@/hooks/use-estoque";
-import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
-import { dateTime } from "@/lib/format";
+import {
+  useEstoqueMutations,
+  useItensEstoque,
+  useMovimentacoesEstoqueHoje,
+} from "@/hooks/use-estoque";
 import { STATUS_ESTOQUE, TIPO_MOVIMENTACAO_ESTOQUE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
@@ -60,7 +69,7 @@ export const Route = createFileRoute("/estoque")({
 const UNIDADES = Object.keys(UNIDADE_NOME) as UnidadeEstoque[];
 const TIPOS = Object.keys(TIPO_MOVIMENTACAO_ESTOQUE) as TipoMovimentacaoEstoque[];
 
-type FormItem = EntradaItemEstoque & { id?: string; saldoInicial: number };
+type FormItem = EntradaItemEstoque & { id?: string; saldoInicial: number; ativo: boolean };
 
 const ITEM_NOVO: FormItem = {
   nome: "",
@@ -69,26 +78,66 @@ const ITEM_NOVO: FormItem = {
   unidade: "UN",
   quantidadeMinima: 0,
   saldoInicial: 0,
+  ativo: true,
 };
 
 function Estoque() {
   const itens = useItensEstoque();
+  const movsHoje = useMovimentacoesEstoqueHoje();
   const [form, setForm] = useState<FormItem | null>(null);
-  const [movimentando, setMovimentando] = useState<ItemEstoque | null>(null);
+  const [ficha, setFicha] = useState<ItemEstoque | null>(null);
+  const [movimentando, setMovimentando] = useState<{
+    item: ItemEstoque;
+    tipo: TipoMovimentacaoEstoque;
+  } | null>(null);
+  const [filtrosKpi, setFiltrosKpi] = useState<Set<FiltroKpiEstoque>>(() => new Set());
 
-  const ativos = (itens.data ?? []).filter((i) => i.ativo);
-  const baixos = ativos.filter((i) => i.status === "BAIXO").length;
-  const zerados = ativos.filter((i) => i.status === "SEM_ESTOQUE").length;
+  /** Mantém a ficha sincronizada após invalidar o cache. */
+  const fichaAtual = useMemo(() => {
+    if (!ficha) return null;
+    return itens.data?.find((i) => i.id === ficha.id) ?? ficha;
+  }, [ficha, itens.data]);
+
+  const toggleFiltro = (filtro: FiltroKpiEstoque) => {
+    setFiltrosKpi((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(filtro)) proximo.delete(filtro);
+      else proximo.add(filtro);
+      return proximo;
+    });
+  };
+
+  const filtroTiposMov = useMemo(() => {
+    const tipos: TipoMovimentacaoEstoque[] = [];
+    if (filtrosKpi.has("entradas_hoje")) tipos.push("ENTRADA");
+    if (filtrosKpi.has("saidas_hoje")) tipos.push("SAIDA");
+    if (filtrosKpi.has("ajustes_hoje")) tipos.push("AJUSTE");
+    return tipos;
+  }, [filtrosKpi]);
+
+  const itensFiltrados = useMemo(() => {
+    const base = itens.data ?? [];
+    const movs = movsHoje.data ?? [];
+    return filtrarItensPorKpis(base, filtrosKpi, movs);
+  }, [itens.data, movsHoje.data, filtrosKpi]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Estoque"
-        description="Saldo dos insumos. As vendas dão baixa pela ficha técnica do produto."
+        description="Bipe insumos e confira saldos."
         actions={
-          <Button onClick={() => setForm(ITEM_NOVO)}>
-            <Plus className="size-4" aria-hidden="true" /> Novo item
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/estoque/historico">
+                <List className="size-4" aria-hidden="true" />
+                <span className="sm:inline">Histórico</span>
+              </Link>
+            </Button>
+            <Button size="sm" onClick={() => setForm(ITEM_NOVO)}>
+              <Plus className="size-4" aria-hidden="true" /> Novo item
+            </Button>
+          </>
         }
       />
 
@@ -101,79 +150,116 @@ function Estoque() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Indicador rotulo="Itens ativos" valor={ativos.length} icone={Boxes} tom="neutro" />
-            <Indicador
-              rotulo="Estoque baixo"
-              valor={baixos}
-              icone={AlertTriangle}
-              tom={baixos > 0 ? "atencao" : "neutro"}
-            />
-            <Indicador
-              rotulo="Sem estoque"
-              valor={zerados}
-              icone={PackageX}
-              tom={zerados > 0 ? "critico" : "neutro"}
+          {/* KPIs e extrato: só desktop — no celular o foco é bipar. */}
+          <div className="hidden lg:block">
+            <KpisEstoque
+              itens={itens.data}
+              movsHoje={movsHoje.data ?? []}
+              selecionados={filtrosKpi}
+              onToggle={toggleFiltro}
             />
           </div>
 
-          <Tabs defaultValue="itens" className="gap-4">
-            <TabsList className={ABAS_LISTA}>
-              <TabsTrigger value="itens" className={ABAS_GATILHO}>
-                Itens
-              </TabsTrigger>
-              <TabsTrigger value="movimentacoes" className={ABAS_GATILHO}>
-                Movimentações
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="itens" className="mt-4">
+          {/* Altura = coluna direita (scan + 10 transações). Insumos só estica até igualar. */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)] lg:items-stretch">
+            <div className="order-1 flex flex-col gap-4 lg:order-2">
+              <AcoesBipagem className="shrink-0" itens={itens.data} />
+              <div className="hidden lg:block">
+                <TransacoesRecentes filtroTipos={filtroTiposMov} />
+              </div>
+            </div>
+
+            <div className="order-2 flex h-full min-h-0 flex-col self-stretch rounded-xl border border-border bg-card p-4 shadow-xs lg:order-1">
+              <h2 className="mb-3 shrink-0 text-sm font-semibold text-foreground">
+                Insumos ({itensFiltrados.length})
+              </h2>
               <ListaItens
-                itens={itens.data}
+                itens={itensFiltrados}
+                catalogoVazio={itens.data.length === 0}
                 aoNovo={() => setForm(ITEM_NOVO)}
-                aoEditar={(i) =>
-                  setForm({
-                    id: i.id,
-                    nome: i.nome,
-                    codigo: i.codigo,
-                    categoria: i.categoria,
-                    unidade: i.unidade,
-                    quantidadeMinima: i.quantidadeMinima,
-                    saldoInicial: 0,
-                  })
-                }
-                aoMovimentar={setMovimentando}
+                aoAbrir={setFicha}
               />
-            </TabsContent>
-            <TabsContent value="movimentacoes" className="mt-4">
-              <ListaMovimentacoes />
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </>
       )}
 
+      <DialogoFichaItem
+        item={fichaAtual}
+        onFechar={() => setFicha(null)}
+        onEditar={(i) => {
+          setForm({
+            id: i.id,
+            nome: i.nome,
+            codigo: i.codigo,
+            categoria: i.categoria,
+            unidade: i.unidade,
+            quantidadeMinima: i.quantidadeMinima,
+            saldoInicial: 0,
+            ativo: i.ativo,
+          });
+        }}
+        onMovimentar={(item, tipo) => setMovimentando({ item, tipo })}
+      />
       <DialogoItem form={form} aoFechar={() => setForm(null)} />
-      <DialogoMovimento item={movimentando} aoFechar={() => setMovimentando(null)} />
+      <DialogoMovimento
+        item={movimentando?.item ?? null}
+        tipoInicial={movimentando?.tipo ?? "ENTRADA"}
+        aoFechar={() => setMovimentando(null)}
+      />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Resumo e estados
-// ---------------------------------------------------------------------------
+function filtrarItensPorKpis(
+  itens: ItemEstoque[],
+  filtros: ReadonlySet<FiltroKpiEstoque>,
+  movsHoje: import("@/services/estoque").MovimentacaoEstoque[],
+): ItemEstoque[] {
+  if (filtros.size === 0) return itens;
+
+  let lista = itens;
+
+  if (filtros.has("ativos")) {
+    lista = lista.filter((i) => i.ativo);
+  }
+
+  const status: StatusEstoque[] = [];
+  if (filtros.has("baixo")) status.push("BAIXO");
+  if (filtros.has("sem_estoque")) status.push("SEM_ESTOQUE");
+  if (status.length > 0) {
+    const set = new Set(status);
+    lista = lista.filter((i) => set.has(i.status));
+  }
+
+  const tipos: TipoMovimentacaoEstoque[] = [];
+  if (filtros.has("entradas_hoje")) tipos.push("ENTRADA");
+  if (filtros.has("saidas_hoje")) tipos.push("SAIDA");
+  if (filtros.has("ajustes_hoje")) tipos.push("AJUSTE");
+  if (tipos.length > 0) {
+    const setTipos = new Set(tipos);
+    const nomes = new Set(
+      movsHoje.filter((m) => setTipos.has(m.tipo)).map((m) => m.itemNome.toLowerCase()),
+    );
+    lista = lista.filter((i) => nomes.has(i.nome.toLowerCase()));
+  }
+
+  return lista;
+}
 
 function EstoqueSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true">
       <span className="sr-only">Carregando estoque…</span>
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        {[0, 1, 2].map((n) => (
+      <div className="hidden gap-3 lg:grid lg:grid-cols-6">
+        {[0, 1, 2, 3, 4, 5].map((n) => (
           <div key={n} className="rounded-xl border border-border bg-card px-4 py-3 shadow-xs">
             <Skeleton className="h-3 w-20" />
             <Skeleton className="mt-2 h-7 w-10" />
           </div>
         ))}
       </div>
-      <Skeleton className="h-10 w-56 rounded-lg" />
+      <Skeleton className="h-24 w-full rounded-xl lg:hidden" />
       <LinhasSkeleton />
     </div>
   );
@@ -236,18 +322,20 @@ function SeloSituacao({ status }: { status: StatusEstoque }) {
 
 function ListaItens({
   itens,
+  catalogoVazio = false,
   aoNovo,
-  aoEditar,
-  aoMovimentar,
+  aoAbrir,
 }: {
   itens: ItemEstoque[];
+  /** True quando a empresa ainda não tem nenhum item cadastrado. */
+  catalogoVazio?: boolean;
   aoNovo: () => void;
-  aoEditar: (item: ItemEstoque) => void;
-  aoMovimentar: (item: ItemEstoque) => void;
+  aoAbrir: (item: ItemEstoque) => void;
 }) {
   const { alternarAtivo } = useEstoqueMutations();
   const [busca, setBusca] = useState("");
   const [mostrarInativos, setMostrarInativos] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   const termo = busca.trim().toLowerCase();
   const lista = itens.filter(
@@ -257,8 +345,13 @@ function ListaItens({
         i.codigo.toLowerCase().includes(termo) ||
         i.categoria.toLowerCase().includes(termo)),
   );
+  const paginaAtual = fatiaPagina(lista, pagina, INSUMOS_POR_PAGINA);
 
-  if (itens.length === 0) {
+  useEffect(() => {
+    setPagina(1);
+  }, [busca, mostrarInativos, itens]);
+
+  if (catalogoVazio) {
     return (
       <EmptyState
         icon={Boxes}
@@ -276,9 +369,9 @@ function ListaItens({
   const secundario = (i: ItemEstoque) => [i.codigo, i.categoria].filter(Boolean).join(" · ");
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 items-center gap-3">
+        <div className="relative min-w-0 flex-1">
           <Search
             className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -291,13 +384,14 @@ function ListaItens({
             onChange={(e) => setBusca(e.target.value)}
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <label className="hidden shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground md:flex">
           <Switch
             checked={mostrarInativos}
             onCheckedChange={setMostrarInativos}
             aria-label="Mostrar desativados"
+            className="scale-90"
           />
-          Mostrar desativados
+          Desativados
         </label>
       </div>
 
@@ -305,220 +399,143 @@ function ListaItens({
         <EmptyState
           icon={Search}
           title="Nenhum item encontrado"
-          description="Ajuste a busca ou mostre os itens desativados."
+          description="Ajuste a busca, as KPIs selecionadas ou mostre os desativados."
           className="py-10"
         />
       ) : (
         <>
-          {/* Celular: uma linha operacional por item. */}
+          {/* Celular: toque abre configurações — bipagem fica no topo. */}
           <ul className="space-y-2 md:hidden">
-            {lista.map((i) => (
-              <li
-                key={i.id}
-                className={cn(
-                  "rounded-xl border border-border bg-card p-4 shadow-xs",
-                  !i.ativo && "opacity-60",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
+            {paginaAtual.map((i) => (
+              <li key={i.id}>
+                <button
+                  type="button"
+                  onClick={() => aoAbrir(i)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left shadow-xs transition-colors hover:bg-muted/40",
+                    !i.ativo && "opacity-60",
+                  )}
+                >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{i.nome}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {[secundario(i), `mín. ${formatarQuantidade(i.quantidadeMinima, i.unidade)}`]
+                      {[i.codigo || null, `mín. ${formatarQuantidade(i.quantidadeMinima, i.unidade)}`]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
                   </div>
-                  <SeloSituacao status={i.status} />
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <Saldo
-                    quantidade={i.quantidade}
-                    unidade={i.unidade}
-                    status={i.status}
-                    className="text-xl"
-                  />
-                  <div className="flex items-center gap-1">
-                    <Switch
-                      checked={i.ativo}
-                      onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
-                      aria-label={`${i.nome} ativo`}
-                      className="mr-1"
+                  <div className="shrink-0 text-right">
+                    <Saldo
+                      quantidade={i.quantidade}
+                      unidade={i.unidade}
+                      status={i.status}
+                      className="text-lg"
                     />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => aoEditar(i)}
-                      aria-label={`Editar ${i.nome}`}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!i.ativo}
-                      onClick={() => aoMovimentar(i)}
-                    >
-                      <ArrowLeftRight className="size-4" aria-hidden="true" />
-                      Movimentar
-                    </Button>
+                    <div className="mt-1 flex justify-end">
+                      <SeloSituacao status={i.status} />
+                    </div>
                   </div>
-                </div>
+                </button>
               </li>
             ))}
           </ul>
 
-          {/* Tablet e desktop: tabela, com colunas secundárias só em telas largas. */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-xs md:block">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/40 text-left text-xs font-medium text-muted-foreground">
-                <tr>
-                  <th className="hidden px-4 py-3 font-medium xl:table-cell">Código</th>
-                  <th className="px-4 py-3 font-medium">Item</th>
-                  <th className="hidden px-4 py-3 font-medium xl:table-cell">Categoria</th>
-                  <th className="px-4 py-3 text-right font-medium">Saldo</th>
-                  <th className="hidden px-4 py-3 text-right font-medium lg:table-cell">Mínimo</th>
-                  <th className="px-4 py-3 font-medium">Situação</th>
-                  <th className="px-4 py-3 font-medium">Ativo</th>
-                  <th className="px-4 py-3">
-                    <span className="sr-only">Ações</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {lista.map((i) => (
-                  <tr
-                    key={i.id}
-                    className={cn("transition-colors hover:bg-muted/30", !i.ativo && "opacity-60")}
-                  >
-                    <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
-                      {i.codigo || "—"}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <p className="font-semibold text-foreground">{i.nome}</p>
-                      {secundario(i) && (
-                        <p className="text-xs text-muted-foreground xl:hidden">{secundario(i)}</p>
-                      )}
-                    </td>
-                    <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
-                      {i.categoria || "—"}
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <Saldo
-                        quantidade={i.quantidade}
-                        unidade={i.unidade}
-                        status={i.status}
-                        className="text-base"
-                      />
-                    </td>
-                    <td className="hidden px-4 py-3.5 text-right whitespace-nowrap text-muted-foreground tabular-nums lg:table-cell">
-                      {formatarQuantidade(i.quantidadeMinima, i.unidade)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <SeloSituacao status={i.status} />
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <Switch
-                        checked={i.ativo}
-                        onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
-                        aria-label={`${i.nome} ativo`}
-                      />
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!i.ativo}
-                          onClick={() => aoMovimentar(i)}
-                        >
-                          <ArrowLeftRight className="size-4" aria-hidden="true" />
-                          Movimentar
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => aoEditar(i)}
-                          aria-label={`Editar ${i.nome}`}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                      </div>
-                    </td>
+          {/* Desktop: tabela cresce no card esticado; 10 por página. */}
+          <div className="hidden min-h-0 flex-1 -mx-4 flex-col border-t border-border md:flex">
+            <div className="min-h-0 flex-1">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border bg-muted/30 text-left text-xs font-medium text-muted-foreground">
+                  <tr>
+                    <th className="hidden px-4 py-3 font-medium xl:table-cell">Código</th>
+                    <th className="px-4 py-3 font-medium">Item</th>
+                    <th className="hidden px-4 py-3 font-medium xl:table-cell">Categoria</th>
+                    <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                    <th className="hidden px-4 py-3 text-right font-medium lg:table-cell">Mínimo</th>
+                    <th className="px-4 py-3 font-medium">Situação</th>
+                    <th className="px-4 py-3 font-medium">Ativo</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {paginaAtual.map((i) => (
+                    <tr
+                      key={i.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => aoAbrir(i)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          aoAbrir(i);
+                        }
+                      }}
+                      className={cn(
+                        "cursor-pointer transition-colors hover:bg-muted/30",
+                        !i.ativo && "opacity-60",
+                      )}
+                    >
+                      <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
+                        {i.codigo || "—"}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="font-semibold text-foreground">{i.nome}</p>
+                        {secundario(i) && (
+                          <p className="text-xs text-muted-foreground xl:hidden">{secundario(i)}</p>
+                        )}
+                      </td>
+                      <td className="hidden px-4 py-3.5 text-muted-foreground xl:table-cell">
+                        {i.categoria || "—"}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <Saldo
+                          quantidade={i.quantidade}
+                          unidade={i.unidade}
+                          status={i.status}
+                          className="text-base"
+                        />
+                      </td>
+                      <td className="hidden px-4 py-3.5 text-right whitespace-nowrap text-muted-foreground tabular-nums lg:table-cell">
+                        {formatarQuantidade(i.quantidadeMinima, i.unidade)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <SeloSituacao status={i.status} />
+                      </td>
+                      <td
+                        className="px-4 py-3.5"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Switch
+                          checked={i.ativo}
+                          onCheckedChange={(ativo) => alternarAtivo.mutate({ id: i.id, ativo })}
+                          aria-label={`${i.nome} ativo`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-auto shrink-0 border-t border-border bg-muted/20 px-4">
+              <PaginacaoEstoque
+                pagina={pagina}
+                total={lista.length}
+                porPagina={INSUMOS_POR_PAGINA}
+                ocultarSeUnica={false}
+                onChange={setPagina}
+              />
+            </div>
+          </div>
+          <div className="mt-auto border-t border-border bg-muted/20 px-1 md:hidden">
+            <PaginacaoEstoque
+              pagina={pagina}
+              total={lista.length}
+              porPagina={INSUMOS_POR_PAGINA}
+              ocultarSeUnica={false}
+              onChange={setPagina}
+            />
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Movimentações
-// ---------------------------------------------------------------------------
-
-function ListaMovimentacoes() {
-  const movimentacoes = useMovimentacoesEstoque();
-
-  if (movimentacoes.isPending) return <LinhasSkeleton />;
-  if (movimentacoes.isError) {
-    return (
-      <ErrorState
-        description="Não foi possível carregar as movimentações."
-        onRetry={() => void movimentacoes.refetch()}
-      />
-    );
-  }
-  if (movimentacoes.data.length === 0) {
-    return (
-      <EmptyState
-        icon={Boxes}
-        title="Sem movimentações"
-        description="Entradas, saídas, ajustes e baixas de venda aparecerão aqui."
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">Últimas 100 movimentações.</p>
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm shadow-xs">
-        {movimentacoes.data.map((m) => (
-          <li key={m.id} className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5">
-            <StatusBadge tone={TIPO_MOVIMENTACAO_ESTOQUE[m.tipo].tone} className="mt-0.5">
-              {m.origem === "PEDIDO"
-                ? m.variacao < 0
-                  ? "Venda"
-                  : "Devolução"
-                : TIPO_MOVIMENTACAO_ESTOQUE[m.tipo].label}
-            </StatusBadge>
-            <div className="min-w-0 flex-1 basis-48">
-              <p className="font-semibold text-foreground">{m.itemNome}</p>
-              <p className="text-xs text-muted-foreground">
-                {m.motivo}
-                {m.observacao && ` · ${m.observacao}`}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {m.nomeMembro ? `${m.nomeMembro} · ` : ""}
-                {dateTime(m.criadoEm)}
-              </p>
-            </div>
-            <div className="ml-auto text-right whitespace-nowrap tabular-nums">
-              <p className={cn("font-bold", m.variacao < 0 ? "text-destructive" : "text-success")}>
-                {m.variacao > 0 ? "+" : "−"}
-                {formatarQuantidade(Math.abs(m.variacao), m.unidade)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                saldo {formatarQuantidade(m.saldoResultante, m.unidade)}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -532,10 +549,10 @@ function DialogoItem({ form, aoFechar }: { form: FormItem | null; aoFechar: () =
     <Dialog open={!!form} onOpenChange={(abrir) => !abrir && aoFechar()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{form?.id ? "Editar item" : "Novo item de estoque"}</DialogTitle>
+          <DialogTitle>{form?.id ? "Configurações do item" : "Novo item de estoque"}</DialogTitle>
           <DialogDescription>
             {form?.id
-              ? "O saldo não é editado aqui: use Movimentar para registrar entrada, saída ou ajuste."
+              ? "Altere cadastro e status. O saldo só muda com movimentação ou bipagem."
               : "O saldo inicial fica registrado como a primeira entrada do item."}
           </DialogDescription>
         </DialogHeader>
@@ -546,10 +563,10 @@ function DialogoItem({ form, aoFechar }: { form: FormItem | null; aoFechar: () =
 }
 
 function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: () => void }) {
-  const { criar, atualizar } = useEstoqueMutations();
+  const { criar, atualizar, alternarAtivo } = useEstoqueMutations();
   const [dados, setDados] = useState(inicial);
   const [requisicaoId] = useState(() => novoUuid());
-  const salvando = criar.isPending || atualizar.isPending;
+  const salvando = criar.isPending || atualizar.isPending || alternarAtivo.isPending;
   const valido =
     dados.nome.trim().length >= 2 && dados.quantidadeMinima >= 0 && dados.saldoInicial >= 0;
 
@@ -558,11 +575,21 @@ function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: ()
 
   const salvar = () => {
     if (!valido) return;
-    const { id, saldoInicial, ...entrada } = dados;
+    const { id, saldoInicial, ativo, ...entrada } = dados;
     if (id) {
-      atualizar.mutate({ id, ...entrada }, { onSuccess: aoFechar });
+      const concluir = () => {
+        if (ativo !== inicial.ativo) {
+          alternarAtivo.mutate({ id, ativo }, { onSuccess: aoFechar });
+        } else {
+          aoFechar();
+        }
+      };
+      atualizar.mutate({ id, ...entrada }, { onSuccess: concluir });
     } else {
-      criar.mutate({ ...entrada, saldoInicial, requisicaoId }, { onSuccess: aoFechar });
+      criar.mutate(
+        { ...entrada, saldoInicial, requisicaoId },
+        { onSuccess: aoFechar },
+      );
     }
   };
 
@@ -637,6 +664,19 @@ function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: ()
             />
           </div>
         )}
+        {dados.id && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Item ativo</p>
+              <p className="text-xs text-muted-foreground">Desative para tirar das contagens e da bipagem.</p>
+            </div>
+            <Switch
+              checked={dados.ativo}
+              onCheckedChange={(ativo) => campo("ativo", ativo)}
+              aria-label="Item ativo"
+            />
+          </div>
+        )}
       </form>
       <DialogFooter>
         <Button variant="outline" onClick={aoFechar}>
@@ -650,29 +690,56 @@ function FormularioItem({ inicial, aoFechar }: { inicial: FormItem; aoFechar: ()
   );
 }
 
-function DialogoMovimento({ item, aoFechar }: { item: ItemEstoque | null; aoFechar: () => void }) {
+function DialogoMovimento({
+  item,
+  tipoInicial,
+  aoFechar,
+}: {
+  item: ItemEstoque | null;
+  tipoInicial: TipoMovimentacaoEstoque;
+  aoFechar: () => void;
+}) {
   return (
     <Dialog open={!!item} onOpenChange={(abrir) => !abrir && aoFechar()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Movimentar: {item?.nome}</DialogTitle>
+          <DialogTitle>
+            {TIPO_MOVIMENTACAO_ESTOQUE[tipoInicial].label}: {item?.nome}
+          </DialogTitle>
           <DialogDescription>
             Saldo atual: {item ? formatarQuantidade(item.quantidade, item.unidade) : ""}
           </DialogDescription>
         </DialogHeader>
-        {item && <FormularioMovimento item={item} aoFechar={aoFechar} />}
+        {item && (
+          <FormularioMovimento item={item} tipoInicial={tipoInicial} aoFechar={aoFechar} />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function FormularioMovimento({ item, aoFechar }: { item: ItemEstoque; aoFechar: () => void }) {
+function FormularioMovimento({
+  item,
+  tipoInicial,
+  aoFechar,
+}: {
+  item: ItemEstoque;
+  tipoInicial: TipoMovimentacaoEstoque;
+  aoFechar: () => void;
+}) {
   const { movimentar } = useEstoqueMutations();
-  const [tipo, setTipo] = useState<TipoMovimentacaoEstoque>("ENTRADA");
-  const [quantidade, setQuantidade] = useState(0);
+  const [tipo, setTipo] = useState<TipoMovimentacaoEstoque>(tipoInicial);
+  const [quantidade, setQuantidade] = useState(tipoInicial === "AJUSTE" ? item.quantidade : 0);
   const [motivo, setMotivo] = useState("");
   const [observacao, setObservacao] = useState("");
   const [requisicaoId] = useState(() => novoUuid());
+
+  useEffect(() => {
+    setTipo(tipoInicial);
+    setQuantidade(tipoInicial === "AJUSTE" ? item.quantidade : 0);
+    setMotivo("");
+    setObservacao("");
+  }, [tipoInicial, item.id, item.quantidade]);
 
   const saldoApos =
     tipo === "AJUSTE"

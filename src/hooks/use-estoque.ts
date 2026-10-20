@@ -17,12 +17,28 @@ export function useItensEstoque() {
 }
 
 /** Sem `itemId`, traz as últimas movimentações de todos os itens. */
-export function useMovimentacoesEstoque(itemId?: string) {
+export function useMovimentacoesEstoque(itemId?: string, limite = 100) {
   const { empresa } = useEmpresaAtual();
 
   return useQuery({
     queryKey: chaves.movimentacoesEstoque(empresa.id, itemId ?? "todas"),
-    queryFn: () => servico.listarMovimentacoesEstoque(empresa.id, { itemId }),
+    queryFn: () => servico.listarMovimentacoesEstoque(empresa.id, { itemId, limite }),
+  });
+}
+
+/** Movimentações desde o início do dia local (para KPIs). */
+export function useMovimentacoesEstoqueHoje() {
+  const { empresa } = useEmpresaAtual();
+  const inicioDia = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  })();
+
+  return useQuery({
+    queryKey: [...chaves.estoque(empresa.id), "movimentacoes-hoje", inicioDia.slice(0, 10)] as const,
+    queryFn: () =>
+      servico.listarMovimentacoesEstoque(empresa.id, { desde: inicioDia, limite: 500 }),
   });
 }
 
@@ -72,6 +88,18 @@ export function useEstoqueMutations() {
     invalidar,
   });
 
+  const confirmarSessao = useMutacao({
+    executar: (entrada: Parameters<typeof servico.confirmarSessaoBipagem>[1]) =>
+      servico.confirmarSessaoBipagem(empresa.id, entrada),
+    sucesso: (_, e) => {
+      const n = e.linhas.filter((l) => l.quantidade > 0).length;
+      if (e.tipo === "AJUSTE") return "Inventário registrado.";
+      if (e.tipo === "SAIDA") return `${n} saída(s) registrada(s).`;
+      return `${n} entrada(s) registrada(s).`;
+    },
+    invalidar,
+  });
+
   const definirFicha = useMutacao({
     executar: ({ produtoId, insumos }: { produtoId: string; insumos: servico.InsumoFicha[] }) =>
       servico.definirFichaTecnica(produtoId, insumos),
@@ -79,5 +107,5 @@ export function useEstoqueMutations() {
     invalidar,
   });
 
-  return { criar, atualizar, alternarAtivo, movimentar, definirFicha };
+  return { criar, atualizar, alternarAtivo, movimentar, confirmarSessao, definirFicha };
 }

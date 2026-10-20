@@ -114,7 +114,7 @@ type LinhaMovimentacao = {
 
 export async function listarMovimentacoesEstoque(
   empresaId: string,
-  filtro: { itemId?: string; limite?: number } = {},
+  filtro: { itemId?: string; limite?: number; desde?: string } = {},
 ): Promise<MovimentacaoEstoque[]> {
   let consulta = supabase
     .from("movimentacoes_estoque")
@@ -127,6 +127,7 @@ export async function listarMovimentacoesEstoque(
     .limit(filtro.limite ?? 100);
 
   if (filtro.itemId) consulta = consulta.eq("item_id", filtro.itemId);
+  if (filtro.desde) consulta = consulta.gte("criado_em", filtro.desde);
 
   const { data, error } = await consulta.returns<LinhaMovimentacao[]>();
   if (error) throw error;
@@ -145,6 +146,47 @@ export async function listarMovimentacoesEstoque(
     criadoEm: m.criado_em,
   }));
 }
+
+export type ResumoEstoqueDia = {
+  entradas: number;
+  saidas: number;
+  ajustes: number;
+};
+
+/** Contagem de lançamentos de hoje (timezone do aparelho → ISO do início do dia local). */
+export function resumirMovimentacoesDia(movs: MovimentacaoEstoque[]): ResumoEstoqueDia {
+  return movs.reduce(
+    (acc, m) => {
+      if (m.tipo === "ENTRADA") acc.entradas += 1;
+      else if (m.tipo === "SAIDA") acc.saidas += 1;
+      else acc.ajustes += 1;
+      return acc;
+    },
+    { entradas: 0, saidas: 0, ajustes: 0 } satisfies ResumoEstoqueDia,
+  );
+}
+
+export function normalizarCodigoBarras(codigo: string): string {
+  return codigo.trim().toUpperCase();
+}
+
+export function buscarItemPorCodigo(
+  itens: ItemEstoque[],
+  codigo: string,
+): ItemEstoque | undefined {
+  const alvo = normalizarCodigoBarras(codigo);
+  if (!alvo) return undefined;
+  return itens.find((i) => i.ativo && normalizarCodigoBarras(i.codigo) === alvo);
+}
+
+export type LinhaSessaoBipagem = {
+  itemId: string;
+  codigo: string;
+  nome: string;
+  unidade: UnidadeEstoque;
+  quantidade: number;
+  saldoAtual: number;
+};
 
 export async function listarFichaTecnica(
   empresaId: string,
@@ -243,6 +285,28 @@ export async function movimentarEstoque(
   });
 
   if (error) throw error;
+}
+
+/** Confirma a sessão linha a linha; cada linha tem seu client_request_id. */
+export async function confirmarSessaoBipagem(
+  empresaId: string,
+  entrada: {
+    tipo: "ENTRADA" | "SAIDA" | "AJUSTE";
+    motivo: string;
+    linhas: Array<{ itemId: string; quantidade: number; requisicaoId: string }>;
+  },
+): Promise<void> {
+  for (const linha of entrada.linhas) {
+    if (linha.quantidade <= 0) continue;
+    await movimentarEstoque(empresaId, {
+      itemId: linha.itemId,
+      tipo: entrada.tipo,
+      quantidade: linha.quantidade,
+      motivo: entrada.motivo,
+      observacao: "",
+      requisicaoId: linha.requisicaoId,
+    });
+  }
 }
 
 export async function definirFichaTecnica(

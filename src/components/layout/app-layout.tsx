@@ -85,6 +85,7 @@ const PAGINAS: Record<string, Pagina> = {
   "/configuracoes": { titulo: "Configurações" },
   "/produtos": { titulo: "Produtos", pai: PAI_CONFIGURACOES },
   "/estoque": { titulo: "Estoque", pai: PAI_CONFIGURACOES },
+  "/estoque/historico": { titulo: "Histórico", pai: { titulo: "Estoque", to: "/estoque" } },
   "/clientes": { titulo: "Clientes", pai: PAI_CONFIGURACOES },
   "/relatorios": { titulo: "Relatórios", pai: PAI_CONFIGURACOES },
   "/ajuda": { titulo: "Central de ajuda" },
