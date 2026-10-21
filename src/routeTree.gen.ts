@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AceitarConviteRouteImport } from './routes/aceitar-convite'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AjudaRouteImport } from './routes/ajuda'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CaixaRouteImport } from './routes/caixa'
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
 const AceitarConviteRoute = AceitarConviteRouteImport.update({
   id: '/aceitar-convite',
   path: '/aceitar-convite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AjudaRoute = AjudaRouteImport.update({
@@ -116,6 +122,7 @@ const EstoqueHistoricoRoute = EstoqueHistoricoRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/admin': typeof AdminRoute
   '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/admin': typeof AdminRoute
   '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/admin': typeof AdminRoute
   '/ajuda': typeof AjudaRoute
   '/cadastro': typeof CadastroRoute
   '/caixa': typeof CaixaRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/aceitar-convite'
+    | '/admin'
     | '/ajuda'
     | '/cadastro'
     | '/caixa'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/aceitar-convite'
+    | '/admin'
     | '/ajuda'
     | '/cadastro'
     | '/caixa'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/aceitar-convite'
+    | '/admin'
     | '/ajuda'
     | '/cadastro'
     | '/caixa'
@@ -234,6 +246,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AceitarConviteRoute: typeof AceitarConviteRoute
+  AdminRoute: typeof AdminRoute
   AjudaRoute: typeof AjudaRoute
   CadastroRoute: typeof CadastroRoute
   CaixaRoute: typeof CaixaRoute
@@ -265,6 +278,13 @@ declare module '@tanstack/react-router' {
       path: '/aceitar-convite'
       fullPath: '/aceitar-convite'
       preLoaderRoute: typeof AceitarConviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ajuda': {
@@ -378,6 +398,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AceitarConviteRoute: AceitarConviteRoute,
+  AdminRoute: AdminRoute,
   AjudaRoute: AjudaRoute,
   CadastroRoute: CadastroRoute,
   CaixaRoute: CaixaRoute,

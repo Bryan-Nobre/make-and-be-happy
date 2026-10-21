@@ -1,5 +1,5 @@
+import { normalizarModulosExtras, type ModuloKey, type Papel } from "@/lib/permissoes";
 import { supabase } from "@/lib/supabase";
-import type { Papel } from "@/lib/permissoes";
 
 export type Empresa = {
   id: string;
@@ -11,6 +11,9 @@ export type Empresa = {
   logoUrl: string | null;
   taxaServico: number;
   envioAutomaticoCozinha: boolean;
+  ativa: boolean;
+  /** Opcionais ligados no menu (mesas, cozinha, produtos…). */
+  modulosExtras: ModuloKey[];
 };
 
 export type Vinculo = {
@@ -21,7 +24,7 @@ export type Vinculo = {
 };
 
 const COLUNAS_EMPRESA =
-  "id, nome, cnpj, telefone, endereco, horario_funcionamento, logo_url, taxa_servico, envio_automatico_cozinha";
+  "id, nome, cnpj, telefone, endereco, horario_funcionamento, logo_url, taxa_servico, envio_automatico_cozinha, ativa, modulos_extras";
 
 type LinhaEmpresa = {
   id: string;
@@ -33,6 +36,8 @@ type LinhaEmpresa = {
   logo_url: string | null;
   taxa_servico: number;
   envio_automatico_cozinha: boolean;
+  ativa: boolean;
+  modulos_extras: string[] | null;
 };
 
 type LinhaVinculo = {
@@ -53,6 +58,8 @@ export function paraEmpresa(linha: LinhaEmpresa): Empresa {
     logoUrl: linha.logo_url,
     taxaServico: Number(linha.taxa_servico),
     envioAutomaticoCozinha: linha.envio_automatico_cozinha,
+    ativa: linha.ativa !== false,
+    modulosExtras: normalizarModulosExtras(linha.modulos_extras),
   };
 }
 

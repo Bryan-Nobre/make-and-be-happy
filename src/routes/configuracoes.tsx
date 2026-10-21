@@ -1,18 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BarChart3,
-  Boxes,
   Check,
   ChefHat,
   ChevronRight,
   Copy,
+  CreditCard,
+  LayoutGrid,
   ListPlus,
   Minus,
   Package,
+  PanelLeft,
   Plus,
+  Shield,
   Trash2,
   Upload,
   Users,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -34,11 +38,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEmpresaMutations, useFormasPagamento } from "@/hooks/use-configuracoes";
 import { useConvitesPendentes, useEquipeMutations, useMembros } from "@/hooks/use-equipe";
 import { useMesaMutations, useMesas } from "@/hooks/use-mesas";
-import { ABAS_GATILHO, ABAS_LISTA } from "@/lib/estilos";
 import { dateShort } from "@/lib/format";
 import {
   MODULO_LABEL,
   MODULOS_DE_GESTAO,
+  MODULOS_MENU_BASE,
+  MODULOS_MENU_OPCIONAIS,
   MODULOS_POR_PAPEL,
   PAPEIS,
   PAPEL_LABEL,
@@ -48,11 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useEmpresa, useEmpresaAtual } from "@/providers/empresa";
 import { METODO_LABEL, type EntradaEmpresa } from "@/services/configuracoes";
-import {
-  copiarLinkConvite,
-  linkDoConvite,
-  urlWhatsAppConvite,
-} from "@/services/equipe";
+import { copiarLinkConvite, linkDoConvite, urlWhatsAppConvite } from "@/services/equipe";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -81,160 +82,162 @@ type Atalho = {
   descricao: string;
   icone: LucideIcon;
   modulo: ModuloKey;
-  to: "/produtos" | "/estoque" | "/clientes" | "/relatorios";
+  to: "/produtos" | "/clientes" | "/relatorios";
   search?: { aba: "adicionais" | "setores" };
 };
 
+/** Atalhos só para módulos opcionais (Estoque já está no menu principal). */
 const ATALHOS: Atalho[] = [
   {
-    titulo: "Produtos e categorias",
-    descricao: "Cardápio, preços, fotos e categorias.",
+    titulo: "Produtos",
+    descricao: "Cardápio, preços e categorias.",
     icone: Package,
     modulo: "produtos",
     to: "/produtos",
   },
   {
     titulo: "Adicionais",
-    descricao: "Grupos de opções oferecidas nos produtos.",
+    descricao: "Opções dos produtos.",
     icone: ListPlus,
     modulo: "produtos",
     to: "/produtos",
     search: { aba: "adicionais" },
   },
   {
-    titulo: "Setores da cozinha",
-    descricao: "Para qual tela da cozinha cada item vai.",
+    titulo: "Setores",
+    descricao: "Telas da cozinha.",
     icone: ChefHat,
     modulo: "produtos",
     to: "/produtos",
     search: { aba: "setores" },
   },
   {
-    titulo: "Estoque",
-    descricao: "Insumos, saldos e movimentações.",
-    icone: Boxes,
-    modulo: "estoque",
-    to: "/estoque",
-  },
-  {
     titulo: "Clientes",
-    descricao: "Cadastro e histórico de pedidos.",
+    descricao: "Cadastro e histórico.",
     icone: Users,
     modulo: "clientes",
     to: "/clientes",
   },
   {
     titulo: "Relatórios",
-    descricao: "Vendas, caixa, estoque e auditoria.",
+    descricao: "Vendas e auditoria.",
     icone: BarChart3,
     modulo: "relatorios",
     to: "/relatorios",
   },
 ];
 
+type AbaConfig = {
+  valor: string;
+  rotulo: string;
+  icone: LucideIcon;
+  soGestor?: boolean;
+};
+
+const ABAS_CONFIG: AbaConfig[] = [
+  { valor: "empresa", rotulo: "Dados", icone: LayoutGrid, soGestor: true },
+  { valor: "operacao", rotulo: "Operação", icone: CreditCard, soGestor: true },
+  { valor: "menu", rotulo: "Menu do app", icone: PanelLeft, soGestor: true },
+  { valor: "mesas", rotulo: "Mesas", icone: UtensilsCrossed, soGestor: true },
+  { valor: "equipe", rotulo: "Usuários", icone: Users, soGestor: true },
+  { valor: "permissoes", rotulo: "Permissões", icone: Shield },
+];
+
 function Configuracoes() {
   const { papel } = useEmpresaAtual();
-  const { podeVer } = useEmpresa();
+  const { podeVer, noMenu } = useEmpresa();
   // Nota: controla apenas a interface; a RLS e as RPCs bloqueiam a escrita de quem não é gestor.
   const gestor = papel === "owner" || papel === "admin";
-  const atalhos = ATALHOS.filter((a) => podeVer(a.modulo));
+  const atalhos = ATALHOS.filter((a) => podeVer(a.modulo) && noMenu(a.modulo));
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="Configurações" description="Cadastros, equipe e regras do restaurante." />
+    <div className="space-y-6">
+      <PageHeader
+        title="Configurações"
+        description="Dados do restaurante, menu do app, equipe e permissões."
+      />
 
       {atalhos.length > 0 && (
-        <section aria-labelledby="titulo-gestao" className="space-y-3">
-          <h2 id="titulo-gestao" className="text-base font-semibold text-foreground">
-            Gestão
-          </h2>
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {atalhos.map((a) => (
-              <li key={a.titulo}>
-                <Link
-                  to={a.to}
-                  search={a.search ?? {}}
-                  className="group flex h-full items-center gap-4 rounded-xl border border-border bg-card px-4 py-4 shadow-xs transition-colors hover:border-primary/30 hover:bg-primary-soft/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-                >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
-                    <a.icone className="size-5" aria-hidden="true" />
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {atalhos.map((a) => (
+            <li key={a.titulo}>
+              <Link
+                to={a.to}
+                search={a.search ?? {}}
+                className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-xs transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+                  <a.icone className="size-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-foreground">{a.titulo}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {a.descricao}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium text-foreground">{a.titulo}</span>
-                    <span className="block text-sm text-muted-foreground">{a.descricao}</span>
-                  </span>
-                  <ChevronRight
-                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground"
+                  aria-hidden="true"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
 
-      <section aria-labelledby="titulo-restaurante" className="space-y-3">
-        <h2 id="titulo-restaurante" className="text-base font-semibold text-foreground">
-          Restaurante
-        </h2>
-        <Ajustes gestor={gestor} />
-      </section>
+      <Ajustes gestor={gestor} />
     </div>
   );
 }
 
 function Ajustes({ gestor }: { gestor: boolean }) {
-  return (
-    <Tabs defaultValue={gestor ? "empresa" : "permissoes"}>
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <TabsList className={ABAS_LISTA}>
-          {gestor && (
-            <>
-              <TabsTrigger value="empresa" className={ABAS_GATILHO}>
-                Dados do restaurante
-              </TabsTrigger>
-              <TabsTrigger value="operacao" className={ABAS_GATILHO}>
-                Operação e pagamentos
-              </TabsTrigger>
-              <TabsTrigger value="mesas" className={ABAS_GATILHO}>
-                Mesas
-              </TabsTrigger>
-              <TabsTrigger value="equipe" className={ABAS_GATILHO}>
-                Usuários
-              </TabsTrigger>
-            </>
-          )}
-          <TabsTrigger value="permissoes" className={ABAS_GATILHO}>
-            Permissões
-          </TabsTrigger>
-        </TabsList>
-      </div>
+  const abas = ABAS_CONFIG.filter((a) => !a.soGestor || gestor);
+  const gatilho =
+    "justify-start gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium data-[state=active]:bg-primary-soft data-[state=active]:text-primary-strong data-[state=active]:shadow-none";
 
-      {gestor && (
-        <>
-          <TabsContent value="empresa" className="mt-4">
-            <SecaoEmpresa />
-          </TabsContent>
-          <TabsContent value="operacao" className="mt-4">
-            <SecaoOperacao />
-          </TabsContent>
-          <TabsContent value="mesas" className="mt-4">
-            <SecaoMesas />
-          </TabsContent>
-          <TabsContent value="equipe" className="mt-4">
-            <SecaoEquipe />
-          </TabsContent>
-        </>
-      )}
-      <TabsContent value="permissoes" className="mt-4 space-y-4">
-        {!gestor && (
-          <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
-            Somente o proprietário e os administradores podem alterar as configurações.
-          </p>
+  return (
+    <Tabs
+      defaultValue={gestor ? "empresa" : "permissoes"}
+      className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6"
+    >
+      <TabsList className="flex h-auto w-full shrink-0 flex-row gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-xs lg:w-52 lg:flex-col lg:items-stretch">
+        {abas.map((aba) => (
+          <TabsTrigger key={aba.valor} value={aba.valor} className={gatilho}>
+            <aba.icone className="size-4 shrink-0 opacity-70" aria-hidden="true" />
+            <span className="truncate">{aba.rotulo}</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      <div className="min-w-0 flex-1 space-y-4">
+        {gestor && (
+          <>
+            <TabsContent value="empresa" className="mt-0">
+              <SecaoEmpresa />
+            </TabsContent>
+            <TabsContent value="operacao" className="mt-0">
+              <SecaoOperacao />
+            </TabsContent>
+            <TabsContent value="menu" className="mt-0">
+              <SecaoMenuApp />
+            </TabsContent>
+            <TabsContent value="mesas" className="mt-0">
+              <SecaoMesas />
+            </TabsContent>
+            <TabsContent value="equipe" className="mt-0">
+              <SecaoEquipe />
+            </TabsContent>
+          </>
         )}
-        <SecaoPermissoes />
-      </TabsContent>
+        <TabsContent value="permissoes" className="mt-0 space-y-4">
+          {!gestor && (
+            <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
+              Somente o proprietário e os administradores podem alterar as configurações.
+            </p>
+          )}
+          <SecaoPermissoes />
+        </TabsContent>
+      </div>
     </Tabs>
   );
 }
@@ -249,20 +252,24 @@ function Secao({
   rodape,
   children,
 }: {
-  titulo: string;
+  titulo?: string;
   descricao?: string;
   rodape?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section
-      aria-label={titulo}
-      className="max-w-4xl rounded-xl border border-border bg-card shadow-xs"
+      aria-label={titulo ?? descricao ?? "Seção"}
+      className="rounded-xl border border-border bg-card shadow-xs"
     >
-      <div className="px-5 pt-5">
-        <h2 className="text-base font-semibold text-foreground">{titulo}</h2>
-        {descricao && <p className="mt-0.5 text-sm text-muted-foreground">{descricao}</p>}
-      </div>
+      {(titulo || descricao) && (
+        <div className="border-b border-border px-5 py-4">
+          {titulo && <h2 className="text-base font-semibold text-foreground">{titulo}</h2>}
+          {descricao && (
+            <p className={cn("text-sm text-muted-foreground", titulo && "mt-0.5")}>{descricao}</p>
+          )}
+        </div>
+      )}
       <div className="p-5">{children}</div>
       {rodape && <div className="flex justify-end border-t border-border px-5 py-3">{rodape}</div>}
     </section>
@@ -366,8 +373,8 @@ function SecaoEmpresa() {
 
   return (
     <Secao
-      titulo="Empresa"
-      descricao="Dados exibidos no sistema e nos comprovantes."
+      titulo="Dados do restaurante"
+      descricao="Aparecem no sistema e nos comprovantes."
       rodape={
         <Button
           disabled={salvar.isPending || form.nome.trim().length < 2}
@@ -378,12 +385,12 @@ function SecaoEmpresa() {
       }
     >
       <BlocoLogo />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         {campo("nome", "Nome fantasia")}
         {campo("cnpj", "CNPJ", "00.000.000/0000-00")}
         {campo("telefone", "Telefone", "(00) 00000-0000")}
         {campo("horarioFuncionamento", "Horário de funcionamento", "Ex.: 11h às 23h")}
-        <div className="md:col-span-2">{campo("endereco", "Endereço")}</div>
+        <div className="sm:col-span-2">{campo("endereco", "Endereço")}</div>
       </div>
     </Secao>
   );
@@ -396,25 +403,28 @@ function BlocoLogo() {
   const ocupado = enviarLogo.isPending || removerLogo.isPending;
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-4 border-b border-border pb-5">
-      <div className="flex min-w-0 flex-1 basis-60 items-center gap-4">
-        <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-16 text-lg" />
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-14 text-base" />
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Logo</p>
-          <p className="text-xs text-muted-foreground">
-            JPG, PNG ou WebP. Fundo transparente fica melhor.
-          </p>
+          <p className="text-xs text-muted-foreground">JPG, PNG ou WebP</p>
         </div>
       </div>
-      <div className="flex gap-2 max-sm:w-full max-sm:justify-end">
+      <div className="flex gap-2">
         {empresa.logoUrl && (
-          <Button variant="ghost" disabled={ocupado} onClick={() => removerLogo.mutate()}>
+          <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => removerLogo.mutate()}>
             Remover
           </Button>
         )}
-        <Button variant="outline" disabled={ocupado} onClick={() => seletor.current?.click()}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={ocupado}
+          onClick={() => seletor.current?.click()}
+        >
           <Upload className="size-4" aria-hidden="true" />
-          {enviarLogo.isPending ? "Enviando…" : empresa.logoUrl ? "Trocar" : "Enviar logo"}
+          {enviarLogo.isPending ? "Enviando…" : empresa.logoUrl ? "Trocar" : "Enviar"}
         </Button>
       </div>
       <input
@@ -430,6 +440,62 @@ function BlocoLogo() {
         }}
       />
     </div>
+  );
+}
+
+function SecaoMenuApp() {
+  const { empresa } = useEmpresaAtual();
+  const { salvarModulosExtras } = useEmpresaMutations();
+  const extras = empresa.modulosExtras;
+
+  const alternar = (modulo: ModuloKey, ligado: boolean) => {
+    const proximo = ligado ? [...new Set([...extras, modulo])] : extras.filter((m) => m !== modulo);
+    salvarModulosExtras.mutate(proximo);
+  };
+
+  return (
+    <Secao
+      titulo="Menu do app"
+      descricao="Escolha o que aparece na navegação. O pacote base fica sempre visível; o perfil do usuário ainda precisa ter permissão."
+    >
+      <div className="space-y-5">
+        <div>
+          <Subtitulo>Sempre visíveis</Subtitulo>
+          <ul className={LISTA}>
+            {MODULOS_MENU_BASE.map((modulo) => (
+              <li key={modulo} className="flex items-center justify-between px-4 py-3 text-sm">
+                <span className="font-medium">{MODULO_LABEL[modulo]}</span>
+                <StatusBadge tone="success">Sempre</StatusBadge>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <Subtitulo>Opcionais</Subtitulo>
+          <ul className={LISTA}>
+            {MODULOS_MENU_OPCIONAIS.map((modulo) => {
+              const ligado = extras.includes(modulo);
+              return (
+                <li
+                  key={modulo}
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
+                >
+                  <span className={cn("font-medium", !ligado && "text-muted-foreground")}>
+                    {MODULO_LABEL[modulo]}
+                  </span>
+                  <Switch
+                    checked={ligado}
+                    disabled={salvarModulosExtras.isPending}
+                    onCheckedChange={(marcado) => alternar(modulo, marcado)}
+                    aria-label={`${ligado ? "Ocultar" : "Mostrar"} ${MODULO_LABEL[modulo]} no menu`}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </Secao>
   );
 }
 
@@ -656,7 +722,9 @@ function SecaoEquipe() {
 
   async function copiarConvite(token: string) {
     const ok = await copiarLinkConvite(token);
-    toast.success(ok ? "Link copiado." : "Não foi possível copiar. Selecione o link e copie manualmente.");
+    toast.success(
+      ok ? "Link copiado." : "Não foi possível copiar. Selecione o link e copie manualmente.",
+    );
   }
 
   return (
@@ -737,7 +805,11 @@ function SecaoEquipe() {
                 convite.
               </p>
             </div>
-            <Input readOnly value={linkDoConvite(ultimoConvite.token)} className="font-mono text-xs" />
+            <Input
+              readOnly
+              value={linkDoConvite(ultimoConvite.token)}
+              className="font-mono text-xs"
+            />
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"

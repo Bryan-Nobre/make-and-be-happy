@@ -79,19 +79,23 @@ function Login() {
 
   return (
     <AuthShell
-      titulo="Entrar"
-      descricao="Use o e-mail e a senha cadastrados para acessar a operação."
+      titulo="Bem-vindo de volta"
+      descricao="Entre com o e-mail e a senha do seu restaurante para abrir a operação."
       rodape={
-        <>
-          Ainda não tem conta?{" "}
-          <Link
-            to="/cadastro"
-            search={{ convite }}
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Criar conta
-          </Link>
-        </>
+        convite ? (
+          <>
+            Foi convidado e ainda não tem conta?{" "}
+            <Link
+              to="/cadastro"
+              search={{ convite }}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Criar conta
+            </Link>
+          </>
+        ) : (
+          <>Acesso liberado pela Arvon Food · use as credenciais que você recebeu.</>
+        )
       }
     >
       <Form {...form}>

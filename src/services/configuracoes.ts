@@ -1,5 +1,6 @@
 import { exigirAlteracao } from "@/lib/erros";
 import { converterParaWebp } from "@/lib/imagem-webp";
+import { normalizarModulosExtras, type ModuloKey } from "@/lib/permissoes";
 import { supabase } from "@/lib/supabase";
 import type { Enums } from "@/types/db";
 
@@ -115,5 +116,16 @@ export async function definirFormaPagamentoAtiva(
       .eq("empresa_id", empresaId)
       .eq("metodo", metodo)
       .select("metodo"),
+  );
+}
+
+/** Liga/desliga módulos opcionais no menu do restaurante. */
+export async function atualizarModulosExtras(
+  empresaId: string,
+  extras: readonly ModuloKey[],
+): Promise<void> {
+  const limpos = normalizarModulosExtras(extras);
+  await exigirAlteracao(
+    supabase.from("empresas").update({ modulos_extras: limpos }).eq("id", empresaId).select("id"),
   );
 }

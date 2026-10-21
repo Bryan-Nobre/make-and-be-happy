@@ -707,7 +707,7 @@ function DetalheComanda({
                   nomeMesa: c.nomeMesa ?? "Mesa",
                   comandaNumero: c.numero,
                   nomeCliente: c.nomeCliente,
-                  pessoas: c.pessoas,
+                  pessoas: c.pessoas ?? 0,
                   subtotal: c.subtotal,
                   taxaServico: c.taxaServico,
                   total: c.total,

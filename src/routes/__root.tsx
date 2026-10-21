@@ -14,7 +14,9 @@ import { registrarServiceWorker } from "@/lib/offline/service-worker";
 import { AuthProvider } from "@/providers/auth";
 import { EmpresaProvider } from "@/providers/empresa";
 import { FilaOfflineProvider } from "@/providers/fila-offline";
+import { MenuLayoutProvider } from "@/providers/menu-layout";
 import { CacheOfflineProvider } from "@/providers/offline";
+import { SCRIPT_TEMA, TemaProvider } from "@/providers/tema";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
@@ -125,6 +127,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
       </head>
       <body>
         {children}
@@ -143,17 +146,21 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <EmpresaProvider>
-          <CacheOfflineProvider>
-            <FilaOfflineProvider>
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
-              <Toaster richColors position="top-right" />
-            </FilaOfflineProvider>
-          </CacheOfflineProvider>
-        </EmpresaProvider>
-      </AuthProvider>
+      <TemaProvider>
+        <AuthProvider>
+          <EmpresaProvider>
+            <MenuLayoutProvider>
+              <CacheOfflineProvider>
+                <FilaOfflineProvider>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                  <Toaster richColors position="top-right" />
+                </FilaOfflineProvider>
+              </CacheOfflineProvider>
+            </MenuLayoutProvider>
+          </EmpresaProvider>
+        </AuthProvider>
+      </TemaProvider>
     </QueryClientProvider>
   );
 }

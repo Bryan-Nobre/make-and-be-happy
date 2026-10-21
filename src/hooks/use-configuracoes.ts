@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { chaves } from "@/lib/chaves";
+import type { ModuloKey } from "@/lib/permissoes";
 import { useEmpresa, useEmpresaAtual } from "@/providers/empresa";
 import * as servico from "@/services/configuracoes";
 
@@ -44,5 +45,11 @@ export function useEmpresaMutations() {
     invalidar: [chaves.formasPagamento(empresa.id)],
   });
 
-  return { salvar, enviarLogo, removerLogo, alternarFormaPagamento };
+  const salvarModulosExtras = useMutacao({
+    executar: (extras: readonly ModuloKey[]) => servico.atualizarModulosExtras(empresa.id, extras),
+    sucesso: "Menu atualizado.",
+    aoConcluir: recarregar,
+  });
+
+  return { salvar, enviarLogo, removerLogo, alternarFormaPagamento, salvarModulosExtras };
 }

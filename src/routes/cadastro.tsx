@@ -66,9 +66,18 @@ function Cadastro() {
     defaultValues: { email: "", senha: "", confirmacao: "" },
   });
 
+  const tokenConvite = convite || lerConvitePendente();
+
   useEffect(() => {
     if (convite) guardarConvitePendente(convite);
   }, [convite]);
+
+  useEffect(() => {
+    // Cadastro aberto só para aceitar convite de equipe — não para criar restaurante.
+    if (aguardandoConfirmacao) return;
+    if (tokenConvite) return;
+    void navigate({ to: "/login", replace: true });
+  }, [tokenConvite, navigate, aguardandoConfirmacao]);
 
   useEffect(() => {
     // Enquanto espera o e-mail, não redireciona sozinho: a outra aba do
@@ -82,35 +91,54 @@ function Cadastro() {
       return;
     }
 
-    void navigate({ to: "/onboarding", replace: true });
+    void navigate({ to: "/login", replace: true });
   }, [carregando, usuario, convite, navigate, aguardandoConfirmacao]);
 
   const enviar = form.handleSubmit(async (valores) => {
     try {
       const token = convite || lerConvitePendente();
-      if (token) guardarConvitePendente(token);
+      if (!token) {
+        toast.error("Cadastro disponível apenas com um convite de equipe.");
+        return;
+      }
+      guardarConvitePendente(token);
 
-      const comSessao = await cadastrar(
-        valores.email,
-        valores.senha,
-        token ? { emailRedirectTo: urlRedirectConvite(token) } : undefined,
-      );
+      const comSessao = await cadastrar(valores.email, valores.senha, {
+        emailRedirectTo: urlRedirectConvite(token),
+      });
       if (!comSessao) setAguardandoConfirmacao(true);
     } catch (erro) {
       toast.error(mensagemDeErro(erro));
     }
   });
 
+  if (!tokenConvite && !aguardandoConfirmacao) {
+    return (
+      <AuthShell
+        titulo="Cadastro restrito"
+        descricao="Contas de restaurante são criadas pela Arvon Food. Cadastro público existe só para quem recebeu convite de equipe."
+        rodape={
+          <>
+            Já tem conta?{" "}
+            <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+              Entrar
+            </Link>
+          </>
+        }
+      >
+        <Button asChild className="h-11 w-full">
+          <Link to="/login">Ir para o login</Link>
+        </Button>
+      </AuthShell>
+    );
+  }
+
   if (aguardandoConfirmacao) {
     const tokenPendente = convite || lerConvitePendente();
     return (
       <AuthShell
         titulo="Confirme o seu e-mail"
-        descricao={
-          tokenPendente
-            ? "Abra o link do e-mail nesta mesma tela ou na aba que abrir. Depois use Continuar para aceitar o convite — não cadastre um restaurante novo."
-            : "Enviamos um link de confirmação. Abra o e-mail para ativar a sua conta e depois entre."
-        }
+        descricao="Abra o link do e-mail nesta mesma tela ou na aba que abrir. Depois use Continuar para aceitar o convite."
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <span className="flex size-11 items-center justify-center rounded-full bg-primary-soft">
@@ -159,11 +187,7 @@ function Cadastro() {
   return (
     <AuthShell
       titulo="Criar conta"
-      descricao={
-        convite
-          ? "Crie a sua conta para aceitar o convite da equipe."
-          : "Crie a sua conta para cadastrar o seu restaurante."
-      }
+      descricao="Crie a sua conta para aceitar o convite da equipe."
       rodape={
         <>
           Já tem conta?{" "}

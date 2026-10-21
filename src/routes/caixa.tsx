@@ -1,5 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Banknote, CreditCard, QrCode, Receipt, Wallet } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpFromLine,
+  Clock,
+  Info,
+  List,
+  Lock,
+  Wallet,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { AppLayout } from "@/components/layout/app-layout";
@@ -7,7 +16,6 @@ import { ControlesPagina } from "@/components/shared/controles-pagina";
 import { DialogoMotivo } from "@/components/shared/dialogo-motivo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MoneyInput } from "@/components/shared/money-input";
 import { PageHeader } from "@/components/shared/page-header";
@@ -24,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCaixaMutations,
   useFechamentos,
@@ -40,7 +49,12 @@ import { TIPO_MOVIMENTACAO } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { novoUuid } from "@/lib/uuid";
 import { useEmpresaAtual } from "@/providers/empresa";
-import type { PagamentoCaixa, PedidoAReceber, SessaoCaixa } from "@/services/caixa";
+import type {
+  MovimentacaoCaixa,
+  PagamentoCaixa,
+  PedidoAReceber,
+  SessaoCaixa,
+} from "@/services/caixa";
 import { METODO_LABEL } from "@/services/configuracoes";
 
 export const Route = createFileRoute("/caixa")({
@@ -65,25 +79,38 @@ export const Route = createFileRoute("/caixa")({
 type TipoManual = "SANGRIA" | "SUPRIMENTO";
 
 const CAMPO_VALOR = "h-12 text-lg font-semibold tabular-nums";
+/** Listas do caixa: sempre 6 por página. */
+const POR_PAGINA_CAIXA = 6;
 
 function Secao({
+  id,
   titulo,
+  icone,
   extra,
   className,
   children,
 }: {
+  id?: string;
   titulo: string;
+  icone?: ReactNode;
   extra?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <section
+      id={id}
       aria-label={titulo}
-      className={cn("rounded-xl border border-border bg-card p-5 shadow-xs", className)}
+      className={cn(
+        "scroll-mt-4 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5",
+        className,
+      )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-foreground">{titulo}</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+          {icone}
+          {titulo}
+        </h2>
         {extra}
       </div>
       <div className="mt-3">{children}</div>
@@ -91,11 +118,20 @@ function Secao({
   );
 }
 
-function SeloEstado({ aberto }: { aberto: boolean }) {
+function Dica({ texto }: { texto: string }) {
   return (
-    <StatusBadge tone={aberto ? "primary" : "neutral"} className="h-7 px-3 text-sm">
-      {aberto ? "Caixa aberto" : "Caixa fechado"}
-    </StatusBadge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+          aria-label={texto}
+        >
+          <Info className="size-3.5" aria-hidden="true" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">{texto}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -103,12 +139,10 @@ function Caixa() {
   useRealtimeCaixa();
   const sessao = useSessaoAberta();
 
-  const cabecalho = <PageHeader title="Caixa" description="Controle financeiro da operação." />;
-
   if (sessao.isPending) {
     return (
       <div className="space-y-6">
-        {cabecalho}
+        <PageHeader title="Caixa" description="Controle financeiro da operação." />
         <LoadingState label="Carregando caixa…" />
       </div>
     );
@@ -116,7 +150,7 @@ function Caixa() {
   if (sessao.isError) {
     return (
       <div className="space-y-6">
-        {cabecalho}
+        <PageHeader title="Caixa" description="Controle financeiro da operação." />
         <ErrorState
           description="Não foi possível carregar o caixa."
           onRetry={() => void sessao.refetch()}
@@ -128,8 +162,15 @@ function Caixa() {
   if (!sessao.data) {
     return (
       <div className="space-y-6">
-        {cabecalho}
-        <SeloEstado aberto={false} />
+        <PageHeader
+          title="Caixa"
+          description="Abra o caixa para receber pagamentos."
+          actions={
+            <StatusBadge tone="neutral" className="h-7 px-3 text-sm">
+              Fechado
+            </StatusBadge>
+          }
+        />
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <AbrirCaixa />
           <UltimoFechamento />
@@ -139,12 +180,7 @@ function Caixa() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {cabecalho}
-      <CaixaAberto sessao={sessao.data} />
-    </div>
-  );
+  return <CaixaAberto sessao={sessao.data} />;
 }
 
 function AbrirCaixa() {
@@ -165,15 +201,13 @@ function AbrirCaixa() {
       }}
     >
       <div>
-        <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-          Abrir caixa
-        </h2>
+        <h2 className="text-base font-semibold text-foreground">Abrir caixa</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Informe o fundo de troco que está na gaveta.
+          Informe o fundo de troco que está na gaveta. Pode ser R$ 0,00.
         </p>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="fundo">Valor inicial</Label>
+        <Label htmlFor="fundo">Dinheiro inicial (fundo de troco)</Label>
         <MoneyInput
           id="fundo"
           value={valor}
@@ -213,21 +247,23 @@ function UltimoFechamento() {
       aria-label="Último fechamento"
       className="rounded-xl border border-border bg-card p-6 shadow-xs"
     >
-      <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-        Último fechamento
-      </h2>
-      <dl className="mt-4 space-y-4">
+      <h2 className="text-base font-semibold text-foreground">Último fechamento</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Caixa {ultimo.numero} · {ultimo.nomeFechamento ?? ultimo.nomeAbertura}
+      </p>
+      <dl className="mt-4 space-y-3 text-sm">
         <div>
-          <dt className="text-sm text-muted-foreground">Data/hora</dt>
-          <dd className="mt-0.5 text-base font-semibold text-foreground">
+          <dt className="text-muted-foreground">Aberto em</dt>
+          <dd className="mt-0.5 font-medium text-foreground">{dateTime(ultimo.abertaEm)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Fechado em</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
             {ultimo.fechadaEm ? dateTime(ultimo.fechadaEm) : "—"}
-          </dd>
-          <dd className="text-xs text-muted-foreground">
-            Caixa {ultimo.numero} · {ultimo.nomeFechamento ?? ultimo.nomeAbertura}
           </dd>
         </div>
         <div>
-          <dt className="text-sm text-muted-foreground">Valor de fechamento</dt>
+          <dt className="text-muted-foreground">Dinheiro contado</dt>
           <dd className="mt-0.5 text-2xl font-bold tracking-tight text-foreground tabular-nums">
             {ultimo.dinheiroInformado !== null ? brl(ultimo.dinheiroInformado) : "—"}
           </dd>
@@ -240,6 +276,7 @@ function UltimoFechamento() {
 function CaixaAberto({ sessao }: { sessao: SessaoCaixa }) {
   const [movimento, setMovimento] = useState<TipoManual | null>(null);
   const [fechando, setFechando] = useState(false);
+  const [focoPendencias, setFocoPendencias] = useState(false);
 
   const vendas = sessao.totalDinheiro + sessao.totalPix + sessao.totalDebito + sessao.totalCredito;
   const porForma = [
@@ -249,129 +286,171 @@ function CaixaAberto({ sessao }: { sessao: SessaoCaixa }) {
     { rotulo: METODO_LABEL.CREDITO, valor: sessao.totalCredito },
   ];
 
+  const irParaPendencias = () => {
+    setFocoPendencias(true);
+    document
+      .getElementById("caixa-a-receber")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <SeloEstado aberto />
-        <p className="text-sm text-muted-foreground">
-          Caixa {sessao.numero} · aberto por {sessao.nomeAbertura} em {dateTime(sessao.abertaEm)}
-        </p>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section
-          aria-label="Dinheiro esperado"
-          className="rounded-xl border border-border bg-card p-6 shadow-xs lg:col-span-2"
-        >
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            Dinheiro esperado
-          </h2>
-          <p className="mt-2 text-4xl font-bold tracking-tight text-foreground tabular-nums">
-            {brl(sessao.dinheiroEsperado)}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">Valor esperado no caixa</p>
-          <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">Fundo inicial</dt>
-              <dd className="font-semibold text-foreground tabular-nums">
-                {brl(sessao.valorInicial)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Suprimentos</dt>
-              <dd className="font-semibold text-foreground tabular-nums">
-                {brl(sessao.suprimentos)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Sangrias</dt>
-              <dd className="font-semibold text-foreground tabular-nums">{brl(sessao.sangrias)}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section
-          aria-label="Ações do caixa"
-          className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6 shadow-xs"
-        >
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            Ações
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-11" onClick={() => setMovimento("SANGRIA")}>
-              Sangria
-            </Button>
-            <Button variant="outline" className="h-11" onClick={() => setMovimento("SUPRIMENTO")}>
-              Suprimento
-            </Button>
-          </div>
-          <Button size="operational" className="mt-auto w-full" onClick={() => setFechando(true)}>
-            Fechar caixa
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Estornos são feitos na lista de pagamentos.
-          </p>
-        </section>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Vendas"
-          value={brl(vendas)}
-          hint={
-            sessao.totalEstornos > 0
-              ? `Já descontados ${brl(sessao.totalEstornos)} em estornos`
-              : undefined
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-4">
+        <PageHeader
+          title="Caixa"
+          description={`Caixa ${sessao.numero} · Aberto às ${time(sessao.abertaEm)} · ${sessao.nomeAbertura}`}
+          actions={
+            <StatusBadge tone="primary" className="h-7 px-3 text-sm">
+              Aberto
+            </StatusBadge>
           }
-          icon={Receipt}
         />
-        <KpiCard label={METODO_LABEL.DINHEIRO} value={brl(sessao.totalDinheiro)} icon={Banknote} />
-        <KpiCard label={METODO_LABEL.PIX} value={brl(sessao.totalPix)} icon={QrCode} />
-        <KpiCard
-          label="Cartões"
-          value={brl(sessao.totalDebito + sessao.totalCredito)}
-          hint={`${METODO_LABEL.DEBITO} ${brl(sessao.totalDebito)} · ${METODO_LABEL.CREDITO} ${brl(sessao.totalCredito)}`}
-          icon={CreditCard}
-        />
-      </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-5">
-        <Movimentacoes
-          sessaoId={sessao.id}
-          quantidade={sessao.movimentacoes}
-          className="lg:col-span-3"
-        />
-        <Secao titulo="Vendas por forma de pagamento" className="lg:col-span-2">
-          <ul className="space-y-4">
-            {porForma.map((f) => {
-              const parte = vendas > 0 ? Math.max(0, Math.min(100, (f.valor / vendas) * 100)) : 0;
-              return (
-                <li key={f.rotulo} className="space-y-1.5 text-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-foreground">{f.rotulo}</span>
-                    <span className="font-semibold text-foreground tabular-nums">
-                      {brl(f.valor)}
-                    </span>
-                  </div>
-                  <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${parte}%` }}
-                    />
-                  </div>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,32%)]">
+          {/* Coluna principal (~70%) */}
+          <div className="space-y-4">
+            <section
+              aria-label="Resumo financeiro"
+              className="grid overflow-hidden rounded-xl border border-border bg-card shadow-xs sm:grid-cols-2"
+            >
+              <div className="space-y-1 border-b border-border p-4 sm:border-r sm:border-b-0 sm:p-5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  Dinheiro esperado (gaveta)
+                  <Dica texto="Fundo inicial + vendas em dinheiro + suprimentos − sangrias − trocos. É o valor físico esperado na gaveta." />
+                </div>
+                <p className="text-3xl font-bold tracking-tight text-primary tabular-nums">
+                  {brl(sessao.dinheiroEsperado)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Fundo inicial: {brl(sessao.valorInicial)}
+                </p>
+              </div>
+              <div className="space-y-1 p-4 sm:p-5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  Vendas recebidas
+                  <Dica texto="Total recebido nesta sessão (Pix, dinheiro e cartões), já descontando estornos." />
+                </div>
+                <p className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+                  {brl(vendas)}
+                </p>
+                <p className="text-xs text-muted-foreground">Pix, dinheiro e cartões</p>
+              </div>
+            </section>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <BotaoAcao
+                icone={<ArrowDownToLine className="size-4" aria-hidden="true" />}
+                titulo="Suprimento"
+                descricao="Adicionar dinheiro"
+                onClick={() => setMovimento("SUPRIMENTO")}
+              />
+              <BotaoAcao
+                icone={<ArrowUpFromLine className="size-4" aria-hidden="true" />}
+                titulo="Sangria"
+                descricao="Retirar dinheiro"
+                onClick={() => setMovimento("SANGRIA")}
+              />
+              <BotaoAcao
+                icone={<List className="size-4" aria-hidden="true" />}
+                titulo="Movimentações"
+                descricao="Ver histórico"
+                onClick={() =>
+                  document
+                    .getElementById("caixa-movimentacoes")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              />
+            </div>
+
+            {/* Mobile: fechar e pendências logo após as ações */}
+            <div className="space-y-3 lg:hidden">
+              <CardFechamento onFechar={() => setFechando(true)} />
+              <CardPendencias onVer={irParaPendencias} />
+            </div>
+
+            <Movimentacoes sessaoId={sessao.id} quantidade={sessao.movimentacoes} />
+            <Pagamentos sessaoId={sessao.id} />
+            <AReceber destacado={focoPendencias} />
+            <Fechamentos />
+          </div>
+
+          {/* Coluna direita (~30%) — desktop */}
+          <aside className="hidden space-y-4 lg:sticky lg:top-4 lg:block">
+            <CardFechamento onFechar={() => setFechando(true)} />
+            <CardPendencias onVer={irParaPendencias} />
+            <Secao titulo="Vendas por forma de pagamento">
+              <ul className="space-y-3.5">
+                {porForma.map((f) => {
+                  const parte =
+                    vendas > 0 ? Math.max(0, Math.min(100, (f.valor / vendas) * 100)) : 0;
+                  return (
+                    <li key={f.rotulo} className="space-y-1.5 text-sm">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-foreground">{f.rotulo}</span>
+                        <span className="font-semibold text-foreground tabular-nums">
+                          {brl(f.valor)}
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                            {parte.toFixed(1)}%
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        className="h-1.5 overflow-hidden rounded-full bg-muted"
+                        aria-hidden="true"
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${parte}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Secao>
+            <Secao titulo="Resumo da sessão">
+              <dl className="space-y-2.5 text-sm">
+                <LinhaResumo rotulo="Abertura" valor={dateTime(sessao.abertaEm)} />
+                <LinhaResumo rotulo="Fundo de troco" valor={brl(sessao.valorInicial)} />
+                <LinhaResumo rotulo="Suprimentos" valor={brl(sessao.suprimentos)} />
+                <LinhaResumo rotulo="Sangrias" valor={brl(sessao.sangrias)} />
+                <LinhaResumo rotulo="Vendas recebidas" valor={brl(vendas)} />
+                {sessao.totalEstornos > 0 && (
+                  <LinhaResumo rotulo="Estornos" valor={brl(sessao.totalEstornos)} />
+                )}
+                <div className="border-t border-border pt-2.5">
+                  <LinhaResumo
+                    rotulo="Saldo na gaveta"
+                    valor={brl(sessao.dinheiroEsperado)}
+                    destaque
+                  />
+                </div>
+              </dl>
+            </Secao>
+          </aside>
+        </div>
+
+        {/* Mobile: resumo e formas no fim */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:hidden">
+          <Secao titulo="Vendas por forma de pagamento">
+            <ul className="space-y-3 text-sm">
+              {porForma.map((f) => (
+                <li key={f.rotulo} className="flex items-center justify-between gap-2">
+                  <span>{f.rotulo}</span>
+                  <span className="font-semibold tabular-nums">{brl(f.valor)}</span>
                 </li>
-              );
-            })}
-          </ul>
-        </Secao>
+              ))}
+            </ul>
+          </Secao>
+          <Secao titulo="Resumo da sessão">
+            <dl className="space-y-2 text-sm">
+              <LinhaResumo rotulo="Fundo de troco" valor={brl(sessao.valorInicial)} />
+              <LinhaResumo rotulo="Vendas recebidas" valor={brl(vendas)} />
+              <LinhaResumo rotulo="Saldo na gaveta" valor={brl(sessao.dinheiroEsperado)} destaque />
+            </dl>
+          </Secao>
+        </div>
       </div>
-
-      <div className="grid items-start gap-4 lg:grid-cols-5">
-        <Pagamentos sessaoId={sessao.id} className="lg:col-span-3" />
-        <AReceber className="lg:col-span-2" />
-      </div>
-
-      <Fechamentos />
 
       <DialogoMovimento
         tipo={movimento}
@@ -379,17 +458,164 @@ function CaixaAberto({ sessao }: { sessao: SessaoCaixa }) {
         aoFechar={() => setMovimento(null)}
       />
       <DialogoFechamento sessao={sessao} aberto={fechando} aoFechar={() => setFechando(false)} />
-    </>
+    </TooltipProvider>
   );
 }
 
-function AReceber({ className }: { className?: string }) {
-  const pedidos = usePedidosAReceber();
-  const [recebendo, setRecebendo] = useState<PedidoAReceber | null>(null);
-  const pagina = usePaginaLista(pedidos.data ?? []);
+function BotaoAcao({
+  icone,
+  titulo,
+  descricao,
+  onClick,
+}: {
+  icone: ReactNode;
+  titulo: string;
+  descricao: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 text-left shadow-xs transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+        {icone}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-foreground">{titulo}</span>
+        <span className="block text-xs text-muted-foreground">{descricao}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    </button>
+  );
+}
+
+function CardFechamento({ onFechar }: { onFechar: () => void }) {
+  return (
+    <section
+      aria-label="Fechamento do caixa"
+      className="rounded-xl border border-border bg-card p-4 shadow-xs"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+          <Lock className="size-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-foreground">Encerrar expediente</h2>
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+            Confirme o dinheiro, registre a diferença e finalize a sessão.
+          </p>
+        </div>
+      </div>
+      <Button type="button" size="operational" className="mt-3 w-full" onClick={onFechar}>
+        Fechar caixa
+      </Button>
+    </section>
+  );
+}
+
+function CardPendencias({ onVer }: { onVer: () => void }) {
+  const pendencias = usePendenciasCaixa();
+  const qtd = pendencias.data ? pendencias.data.pedidos + pendencias.data.comandas : 0;
+
+  if (pendencias.isPending) {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
+        Verificando contas pendentes…
+      </div>
+    );
+  }
+
+  if (pendencias.isError) {
+    return (
+      <div
+        role="alert"
+        className="rounded-xl border border-destructive/20 bg-destructive-soft p-4 text-sm shadow-xs"
+      >
+        <p className="font-semibold text-destructive">Não foi possível verificar pendências.</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={() => void pendencias.refetch()}
+        >
+          Tentar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  if (qtd === 0) {
+    return (
+      <div className="rounded-xl border border-success/20 bg-success-soft px-4 py-3 text-sm text-success shadow-xs">
+        Nenhuma conta pendente. Pode fechar o caixa.
+      </div>
+    );
+  }
 
   return (
-    <Secao titulo="Balcão a receber" className={className}>
+    <div
+      role="alert"
+      className="rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm shadow-xs"
+    >
+      <p className="font-semibold text-warning-foreground">Há contas pendentes</p>
+      <p className="mt-1 text-xs leading-snug text-muted-foreground">
+        {pendencias.data.pedidos} pedido(s) de balcão e {pendencias.data.comandas} comanda(s) ·{" "}
+        {brl(pendencias.data.valor)}. Receba tudo antes de fechar.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={onVer}>
+          Ver pendências
+        </Button>
+        {pendencias.data.comandas > 0 && (
+          <Button type="button" size="sm" variant="ghost" asChild>
+            <Link to="/mesas">Ir às mesas</Link>
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LinhaResumo({
+  rotulo,
+  valor,
+  destaque,
+}: {
+  rotulo: string;
+  valor: string;
+  destaque?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className={cn("text-muted-foreground", destaque && "font-medium text-foreground")}>
+        {rotulo}
+      </dt>
+      <dd
+        className={cn(
+          "text-right tabular-nums",
+          destaque ? "font-bold text-foreground" : "font-medium text-foreground",
+        )}
+      >
+        {valor}
+      </dd>
+    </div>
+  );
+}
+
+function AReceber({ destacado }: { destacado?: boolean }) {
+  const pedidos = usePedidosAReceber();
+  const [recebendo, setRecebendo] = useState<PedidoAReceber | null>(null);
+  const pagina = usePaginaLista(pedidos.data ?? [], POR_PAGINA_CAIXA);
+
+  return (
+    <Secao
+      id="caixa-a-receber"
+      titulo="Balcão a receber"
+      className={cn(destacado && "ring-2 ring-warning/40")}
+    >
       {pedidos.isPending ? (
         <LoadingState label="Carregando pedidos…" />
       ) : pedidos.isError ? (
@@ -398,7 +624,7 @@ function AReceber({ className }: { className?: string }) {
           onRetry={() => void pedidos.refetch()}
         />
       ) : pagina.totalItens === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">Nenhum pedido de balcão em aberto.</p>
+        <p className="py-2 text-sm text-muted-foreground">Nenhum pedido de balcão em aberto.</p>
       ) : (
         <div className="space-y-3">
           <ul className="divide-y divide-border text-sm">
@@ -430,6 +656,7 @@ function AReceber({ className }: { className?: string }) {
             totalItens={pagina.totalItens}
             tamanho={pagina.tamanho}
             onMudar={pagina.setPagina}
+            sempreVisivel
           />
         </div>
       )}
@@ -445,18 +672,18 @@ function AReceber({ className }: { className?: string }) {
   );
 }
 
-function Pagamentos({ sessaoId, className }: { sessaoId: string; className?: string }) {
+function Pagamentos({ sessaoId }: { sessaoId: string }) {
   const { papel } = useEmpresaAtual();
   const pagamentos = usePagamentos(sessaoId);
   const { estornar } = useCaixaMutations();
   const [estornando, setEstornando] = useState<PagamentoCaixa | null>(null);
-  const pagina = usePaginaLista(pagamentos.data ?? []);
+  const pagina = usePaginaLista(pagamentos.data ?? [], POR_PAGINA_CAIXA);
 
   // Nota: controla apenas a interface; `estornar_pagamento` valida o papel.
   const podeEstornar = papel === "owner" || papel === "admin";
 
   return (
-    <Secao titulo="Pagamentos" className={className}>
+    <Secao titulo="Pagamentos da sessão">
       {pagamentos.isPending ? (
         <LoadingState label="Carregando pagamentos…" />
       ) : pagamentos.isError ? (
@@ -465,67 +692,70 @@ function Pagamentos({ sessaoId, className }: { sessaoId: string; className?: str
           onRetry={() => void pagamentos.refetch()}
         />
       ) : pagina.totalItens === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">Nenhum pagamento nesta sessão.</p>
+        <p className="py-2 text-sm text-muted-foreground">Nenhum pagamento nesta sessão.</p>
       ) : (
         <div className="space-y-3">
-          <ul className="divide-y divide-border text-sm">
-            {pagina.fatia.map((p) => (
-              <li
-                key={p.id}
-                className={cn(
-                  "flex flex-wrap items-center gap-x-3 gap-y-1 py-3",
-                  p.status === "ESTORNADO" && "opacity-70",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">
-                    {p.pedidoNumero !== null
-                      ? `Pedido #${p.pedidoNumero}`
-                      : `Comanda ${p.comandaNumero ?? ""}`}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {time(p.criadoEm)} · {METODO_LABEL[p.metodo]}
-                    {p.troco !== null && p.troco > 0 && ` · troco ${brl(p.troco)}`}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "font-semibold text-foreground tabular-nums",
-                    p.status === "ESTORNADO" && "line-through",
-                  )}
-                >
-                  {brl(p.valor)}
-                </span>
-                {p.status === "ESTORNADO" ? (
-                  <StatusBadge tone="danger" className="w-fit">
-                    Estornado
-                  </StatusBadge>
-                ) : (
-                  podeEstornar && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:bg-destructive-soft hover:text-destructive"
-                      onClick={() => setEstornando(p)}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground">
+                  <th className="pb-2 font-medium">Data/Hora</th>
+                  <th className="pb-2 font-medium">Origem</th>
+                  <th className="pb-2 font-medium">Forma</th>
+                  <th className="pb-2 text-right font-medium">Valor</th>
+                  <th className="pb-2 text-right font-medium">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pagina.fatia.map((p) => (
+                  <tr key={p.id} className={cn(p.status === "ESTORNADO" && "opacity-70")}>
+                    <td className="py-2.5 whitespace-nowrap text-muted-foreground">
+                      {time(p.criadoEm)}
+                    </td>
+                    <td className="py-2.5 font-medium text-foreground">
+                      {p.pedidoNumero !== null
+                        ? `Pedido #${p.pedidoNumero}`
+                        : `Comanda #${p.comandaNumero ?? ""}`}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground">{METODO_LABEL[p.metodo]}</td>
+                    <td
+                      className={cn(
+                        "py-2.5 text-right font-semibold tabular-nums",
+                        p.status === "ESTORNADO" && "line-through",
+                      )}
                     >
-                      Estornar
-                    </Button>
-                  )
-                )}
-                {p.motivoEstorno && (
-                  <span className="basis-full text-xs text-muted-foreground">
-                    Motivo: {p.motivoEstorno}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+                      {brl(p.valor)}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      {p.status === "ESTORNADO" ? (
+                        <StatusBadge tone="danger" className="w-fit">
+                          Estornado
+                        </StatusBadge>
+                      ) : (
+                        podeEstornar && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                            onClick={() => setEstornando(p)}
+                          >
+                            Estornar
+                          </Button>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <ControlesPagina
             pagina={pagina.pagina}
             totalPaginas={pagina.totalPaginas}
             totalItens={pagina.totalItens}
             tamanho={pagina.tamanho}
             onMudar={pagina.setPagina}
+            sempreVisivel
           />
         </div>
       )}
@@ -551,22 +781,15 @@ function Pagamentos({ sessaoId, className }: { sessaoId: string; className?: str
   );
 }
 
-function Movimentacoes({
-  sessaoId,
-  quantidade,
-  className,
-}: {
-  sessaoId: string;
-  quantidade: number;
-  className?: string;
-}) {
+function Movimentacoes({ sessaoId, quantidade }: { sessaoId: string; quantidade: number }) {
   const movimentacoes = useMovimentacoes(sessaoId);
-  const pagina = usePaginaLista(movimentacoes.data ?? []);
+  const pagina = usePaginaLista(movimentacoes.data ?? [], POR_PAGINA_CAIXA);
 
   return (
     <Secao
-      titulo="Movimentações"
-      className={className}
+      id="caixa-movimentacoes"
+      titulo="Últimas movimentações"
+      icone={<Clock className="size-4 text-muted-foreground" aria-hidden="true" />}
       extra={<span className="text-xs text-muted-foreground tabular-nums">{quantidade}</span>}
     >
       {movimentacoes.isPending ? (
@@ -577,33 +800,13 @@ function Movimentacoes({
           onRetry={() => void movimentacoes.refetch()}
         />
       ) : pagina.totalItens === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">Nenhuma movimentação nesta sessão.</p>
+        <p className="py-2 text-sm text-muted-foreground">Nenhuma movimentação nesta sessão.</p>
       ) : (
         <div className="space-y-3">
           <ul className="divide-y divide-border text-sm">
-            {pagina.fatia.map((m) => {
-              const { label, saida } = TIPO_MOVIMENTACAO[m.tipo];
-              return (
-                <li key={m.id} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">{label}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {time(m.criadoEm)}
-                      {m.descricao && ` · ${m.descricao}`}
-                      {m.tipo !== "ABERTURA" && ` · ${METODO_LABEL[m.metodo]}`}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 font-semibold tabular-nums",
-                      saida ? "text-destructive" : "text-success",
-                    )}
-                  >
-                    {saida ? "−" : "+"} {brl(m.valor)}
-                  </span>
-                </li>
-              );
-            })}
+            {pagina.fatia.map((m) => (
+              <LinhaMovimentacao key={m.id} m={m} />
+            ))}
           </ul>
           <ControlesPagina
             pagina={pagina.pagina}
@@ -611,6 +814,7 @@ function Movimentacoes({
             totalItens={pagina.totalItens}
             tamanho={pagina.tamanho}
             onMudar={pagina.setPagina}
+            sempreVisivel
           />
         </div>
       )}
@@ -618,8 +822,46 @@ function Movimentacoes({
   );
 }
 
+function LinhaMovimentacao({ m }: { m: MovimentacaoCaixa }) {
+  const { label, saida } = TIPO_MOVIMENTACAO[m.tipo];
+  return (
+    <li className="flex items-center gap-3 py-3">
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-lg",
+          saida ? "bg-destructive-soft text-destructive" : "bg-success-soft text-success",
+        )}
+        aria-hidden="true"
+      >
+        {saida ? (
+          <ArrowUpFromLine className="size-3.5" />
+        ) : (
+          <ArrowDownToLine className="size-3.5" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-foreground">{label}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {time(m.criadoEm)}
+          {m.descricao && ` · ${m.descricao}`}
+          {m.tipo !== "ABERTURA" && ` · ${METODO_LABEL[m.metodo]}`}
+        </p>
+      </div>
+      <span
+        className={cn(
+          "shrink-0 font-semibold tabular-nums",
+          saida ? "text-destructive" : "text-success",
+        )}
+      >
+        {saida ? "−" : "+"} {brl(m.valor)}
+      </span>
+    </li>
+  );
+}
+
 function Fechamentos() {
   const fechamentos = useFechamentos();
+  const pagina = usePaginaLista(fechamentos.data ?? [], POR_PAGINA_CAIXA);
 
   return (
     <Secao titulo="Fechamentos anteriores">
@@ -630,60 +872,72 @@ function Fechamentos() {
           description="Não foi possível carregar o histórico."
           onRetry={() => void fechamentos.refetch()}
         />
-      ) : fechamentos.data.length === 0 ? (
+      ) : pagina.totalItens === 0 ? (
         <EmptyState
           icon={Wallet}
           title="Sem histórico"
           description="Os caixas fechados aparecerão aqui."
         />
       ) : (
-        <ul className="divide-y divide-border text-sm">
-          {fechamentos.data.map((c) => {
-            const dif = c.diferenca ?? 0;
-            return (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">
-                    Caixa {c.numero} · {c.nomeFechamento ?? c.nomeAbertura}
-                  </p>
-                  {c.fechadaEm && (
-                    <p className="text-xs text-muted-foreground">{dateTime(c.fechadaEm)}</p>
+        <div className="space-y-3">
+          <ul className="divide-y divide-border text-sm">
+            {pagina.fatia.map((c) => {
+              const dif = c.diferenca ?? 0;
+              return (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      Caixa {c.numero} · {c.nomeFechamento ?? c.nomeAbertura}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Aberto {dateTime(c.abertaEm)}
+                      {" · "}
+                      Fechado {c.fechadaEm ? dateTime(c.fechadaEm) : "—"}
+                    </p>
+                  </div>
+                  <dl className="flex gap-5 text-right tabular-nums">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Esperado</dt>
+                      <dd className="font-medium text-foreground">{brl(c.dinheiroEsperado)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Contado</dt>
+                      <dd className="font-medium text-foreground">{brl(c.dinheiroInformado ?? 0)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Diferença</dt>
+                      <dd
+                        className={cn(
+                          "font-semibold",
+                          dif < 0
+                            ? "text-destructive"
+                            : dif > 0
+                              ? "text-warning-foreground"
+                              : "text-foreground",
+                        )}
+                      >
+                        {brl(dif)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {c.justificativa && (
+                    <span className="basis-full text-xs text-muted-foreground">
+                      Justificativa: {c.justificativa}
+                    </span>
                   )}
-                </div>
-                <dl className="flex gap-5 text-right tabular-nums">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Esperado</dt>
-                    <dd className="font-medium text-foreground">{brl(c.dinheiroEsperado)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Contado</dt>
-                    <dd className="font-medium text-foreground">{brl(c.dinheiroInformado ?? 0)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Diferença</dt>
-                    <dd
-                      className={cn(
-                        "font-semibold",
-                        dif < 0
-                          ? "text-destructive"
-                          : dif > 0
-                            ? "text-warning-foreground"
-                            : "text-foreground",
-                      )}
-                    >
-                      {brl(dif)}
-                    </dd>
-                  </div>
-                </dl>
-                {c.justificativa && (
-                  <span className="basis-full text-xs text-muted-foreground">
-                    Justificativa: {c.justificativa}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+          <ControlesPagina
+            pagina={pagina.pagina}
+            totalPaginas={pagina.totalPaginas}
+            totalItens={pagina.totalItens}
+            tamanho={pagina.tamanho}
+            onMudar={pagina.setPagina}
+            sempreVisivel
+          />
+        </div>
       )}
     </Secao>
   );
@@ -698,15 +952,18 @@ function DialogoMovimento({
   dinheiroEsperado: number;
   aoFechar: () => void;
 }) {
+  const titulo = tipo === "SANGRIA" ? "Retirar dinheiro" : "Adicionar dinheiro";
+  const subtitulo = tipo === "SANGRIA" ? "Sangria" : "Suprimento";
+
   return (
     <Dialog open={!!tipo} onOpenChange={(abrir) => !abrir && aoFechar()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{tipo === "SANGRIA" ? "Sangria" : "Suprimento"}</DialogTitle>
+          <DialogTitle>{titulo}</DialogTitle>
           <DialogDescription>
             {tipo === "SANGRIA"
-              ? `Retirada de dinheiro da gaveta. Disponível: ${brl(dinheiroEsperado)}.`
-              : "Entrada de dinheiro na gaveta, por exemplo para reforçar o troco."}
+              ? `${subtitulo}. Retirada da gaveta. Disponível: ${brl(dinheiroEsperado)}.`
+              : `${subtitulo}. Entrada na gaveta, por exemplo para reforçar o troco.`}
           </DialogDescription>
         </DialogHeader>
         {tipo && (
@@ -775,6 +1032,9 @@ function FormularioMovimento({
             value={descricao}
             maxLength={300}
             onChange={(e) => setDescricao(e.target.value)}
+            placeholder={
+              tipo === "SANGRIA" ? "Ex.: troco / depósito no banco" : "Ex.: reforço de troco"
+            }
           />
         </div>
       </form>
@@ -809,8 +1069,8 @@ function DialogoFechamento({
         <DialogHeader>
           <DialogTitle>Fechar caixa</DialogTitle>
           <DialogDescription>
-            Caixa {sessao.numero}. Conte o dinheiro da gaveta. Depois de fechado, o caixa não pode
-            mais ser alterado.
+            Caixa {sessao.numero}. Conte o dinheiro da gaveta. Depois de fechado, a sessão não pode
+            mais ser alterada.
           </DialogDescription>
         </DialogHeader>
         <FormularioFechamento sessao={sessao} aoFechar={aoFechar} />
@@ -876,18 +1136,15 @@ function FormularioFechamento({ sessao, aoFechar }: { sessao: SessaoCaixa; aoFec
 
         <div className="rounded-lg bg-muted/60 p-4">
           <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            Resumo do turno
+            Dinheiro esperado na gaveta
           </p>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <span className="text-sm text-muted-foreground">Dinheiro esperado</span>
-            <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
-              {brl(sessao.dinheiroEsperado)}
-            </span>
-          </div>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            {brl(sessao.dinheiroEsperado)}
+          </p>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="contado">Dinheiro informado</Label>
+          <Label htmlFor="contado">Dinheiro contado</Label>
           <MoneyInput
             id="contado"
             value={contado}

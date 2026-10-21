@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { CHAVE_PREFERENCIA_EMPRESA, lerContexto, salvarContexto } from "@/lib/offline/contexto";
-import { podeVerModulo, type ModuloKey, type Papel } from "@/lib/permissoes";
+import { moduloNoMenu, podeVerModulo, type ModuloKey, type Papel } from "@/lib/permissoes";
 import { useAuth } from "@/providers/auth";
 import { listarVinculos, type Empresa, type Vinculo } from "@/services/empresas";
 
@@ -25,7 +25,10 @@ type EstadoEmpresa = {
   membroId: string | null;
   nomeUsuario: string;
   selecionarEmpresa: (empresaId: string) => void;
+  /** Papel permite o módulo (UX). Autorização real: RLS. */
   podeVer: (modulo: ModuloKey) => boolean;
+  /** Módulo aparece no menu desta empresa (UX). Autorização real: RLS. */
+  noMenu: (modulo: ModuloKey) => boolean;
   recarregar: () => void;
 };
 
@@ -113,6 +116,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
       nomeUsuario: vinculo?.nomeExibicao ?? usuario?.email ?? "",
       selecionarEmpresa,
       podeVer: (modulo) => podeVerModulo(vinculo?.papel ?? null, modulo),
+      noMenu: (modulo) => moduloNoMenu(modulo, vinculo?.empresa.modulosExtras ?? []),
       recarregar,
     }),
     [

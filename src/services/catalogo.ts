@@ -216,13 +216,14 @@ export type EntradaProduto = {
 export async function salvarProduto(empresaId: string, entrada: EntradaProduto): Promise<string> {
   const { data, error } = await supabase.rpc("salvar_produto", {
     p_empresa: empresaId,
-    p_produto: entrada.id ?? null,
+    // RPC aceita null (criar produto / sem setor); o tipado gerado veio sem nullable.
+    p_produto: (entrada.id ?? null) as unknown as string,
     p_nome: entrada.nome.trim(),
     p_descricao: entrada.descricao.trim(),
     p_preco: entrada.preco,
     p_codigo: entrada.codigo.trim(),
     p_categoria: entrada.categoriaId,
-    p_setor: entrada.setorId,
+    p_setor: (entrada.setorId ?? null) as unknown as string,
     p_grupos: entrada.grupoIds,
   });
 

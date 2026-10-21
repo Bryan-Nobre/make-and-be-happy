@@ -1,5 +1,5 @@
 /**
- * Gerado por `generate_typescript_types` do Supabase MCP.
+ * Gerado por generate_typescript_types do Supabase MCP.
  * Não editar à mão: regenerar sempre que o schema mudar.
  */
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -8,10 +8,70 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5";
+    PostgrestVersion: "14.17";
   };
   public: {
     Tables: {
+      acessos_suporte: {
+        Row: {
+          criou_membro: boolean;
+          empresa_id: string;
+          encerrado_em: string | null;
+          id: string;
+          iniciado_em: string;
+          membro_id: string | null;
+          usuario_id: string;
+        };
+        Insert: {
+          criou_membro?: boolean;
+          empresa_id: string;
+          encerrado_em?: string | null;
+          id?: string;
+          iniciado_em?: string;
+          membro_id?: string | null;
+          usuario_id: string;
+        };
+        Update: {
+          criou_membro?: boolean;
+          empresa_id?: string;
+          encerrado_em?: string | null;
+          id?: string;
+          iniciado_em?: string;
+          membro_id?: string | null;
+          usuario_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "acessos_suporte_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "acessos_suporte_membro_id_fkey";
+            columns: ["membro_id"];
+            isOneToOne: false;
+            referencedRelation: "membros_empresa";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      admins_plataforma: {
+        Row: {
+          criado_em: string;
+          usuario_id: string;
+        };
+        Insert: {
+          criado_em?: string;
+          usuario_id: string;
+        };
+        Update: {
+          criado_em?: string;
+          usuario_id?: string;
+        };
+        Relationships: [];
+      };
       auditoria: {
         Row: {
           acao: string;
@@ -305,6 +365,7 @@ export type Database = {
           horario_funcionamento: string | null;
           id: string;
           logo_url: string | null;
+          modulos_extras: string[];
           nome: string;
           taxa_servico: number;
           telefone: string | null;
@@ -319,6 +380,7 @@ export type Database = {
           horario_funcionamento?: string | null;
           id?: string;
           logo_url?: string | null;
+          modulos_extras?: string[];
           nome: string;
           taxa_servico?: number;
           telefone?: string | null;
@@ -333,6 +395,7 @@ export type Database = {
           horario_funcionamento?: string | null;
           id?: string;
           logo_url?: string | null;
+          modulos_extras?: string[];
           nome?: string;
           taxa_servico?: number;
           telefone?: string | null;
@@ -1850,6 +1913,55 @@ export type Database = {
         Args: { p_itens: Json; p_pedido: string };
         Returns: undefined;
       };
+      admin_plataforma_criar_empresa: {
+        Args: {
+          p_email: string;
+          p_nome: string;
+          p_nome_responsavel: string;
+          p_senha: string;
+          p_telefone?: string;
+        };
+        Returns: {
+          email: string;
+          empresa_id: string;
+          usuario_id: string;
+        }[];
+      };
+      admin_plataforma_definir_ativa: {
+        Args: { p_ativa: boolean; p_empresa: string };
+        Returns: undefined;
+      };
+      admin_plataforma_encerrar_suporte: {
+        Args: { p_empresa: string };
+        Returns: undefined;
+      };
+      admin_plataforma_iniciar_suporte: {
+        Args: { p_empresa: string };
+        Returns: string;
+      };
+      admin_plataforma_listar_empresas: {
+        Args: never;
+        Returns: {
+          ativa: boolean;
+          caixas_abertos: number;
+          criado_em: string;
+          id: string;
+          membros: number;
+          nome: string;
+          vendas_hoje: number;
+        }[];
+      };
+      admin_plataforma_metricas: {
+        Args: never;
+        Returns: {
+          caixas_abertos: number;
+          empresas: number;
+          empresas_ativas: number;
+          empresas_pausadas: number;
+          membros_ativos: number;
+          vendas_hoje: number;
+        }[];
+      };
       ajustar_valores_pedido: {
         Args: { p_acrescimo: number; p_desconto: number; p_pedido: string };
         Returns: undefined;
@@ -2048,6 +2160,7 @@ export type Database = {
         }[];
       };
       reabrir_comanda: { Args: { p_comanda: string }; Returns: undefined };
+      reclamar_admin_plataforma: { Args: never; Returns: boolean };
       registrar_pagamento: {
         Args: {
           p_client_request_id?: string;
@@ -2148,11 +2261,12 @@ export type Database = {
           p_grupos: string[];
           p_nome: string;
           p_preco: number;
-          p_produto: string | null;
-          p_setor: string | null;
+          p_produto: string;
+          p_setor: string;
         };
         Returns: string;
       };
+      sou_admin_plataforma: { Args: never; Returns: boolean };
       transferir_comanda: {
         Args: { p_comanda: string; p_mesa_destino: string };
         Returns: undefined;

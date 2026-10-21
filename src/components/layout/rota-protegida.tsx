@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingScreen } from "@/components/shared/loading-state";
+import { useSouAdminPlataforma } from "@/hooks/use-admin-plataforma";
 import { lerConvitePendente } from "@/lib/convite-pendente";
 import { mensagemDeErro } from "@/lib/erros";
 import { useConexao } from "@/lib/offline/conectividade";
@@ -20,6 +21,7 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
   const { carregando, erro, vinculos, empresa, recarregar } = useEmpresa();
   const { restaurado } = useCacheOffline();
   const conexao = useConexao();
+  const adminPlataforma = useSouAdminPlataforma();
 
   useEffect(() => {
     if (carregandoAuth || usuario) return;
@@ -28,6 +30,13 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (carregando || !usuario || erro || vinculos.length > 0) return;
+    // Admin da plataforma sem vínculo vai para o painel SaaS, não para onboarding.
+    if (adminPlataforma.isLoading || adminPlataforma.data === true) {
+      if (adminPlataforma.data === true) {
+        void navigate({ to: "/admin", replace: true });
+      }
+      return;
+    }
 
     // Convite pendente: não manda criar restaurante novo (vira dono com tudo liberado).
     const convite = lerConvitePendente();
@@ -36,8 +45,17 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Sem vínculo: não abre criação de empresa (só admin cria no /admin).
     void navigate({ to: "/onboarding", replace: true });
-  }, [carregando, usuario, erro, vinculos.length, navigate]);
+  }, [
+    carregando,
+    usuario,
+    erro,
+    vinculos.length,
+    navigate,
+    adminPlataforma.isLoading,
+    adminPlataforma.data,
+  ]);
 
   if (carregandoAuth || !usuario) {
     return <LoadingScreen label="Verificando o seu acesso…" />;

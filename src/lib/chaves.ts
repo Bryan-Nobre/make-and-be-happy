@@ -48,4 +48,11 @@ export const chaves = {
   dashboard: (empresaId: string) => ["dashboard", empresaId] as const,
   relatorios: (empresaId: string, inicio: string, fim: string) =>
     ["relatorios", empresaId, inicio, fim] as const,
+
+  /** Admin da plataforma (fora do tenant). */
+  adminPlataforma: () => ["admin-plataforma"] as const,
+  adminPlataformaSou: () => ["admin-plataforma", "sou"] as const,
+  adminPlataformaMetricas: () => ["admin-plataforma", "metricas"] as const,
+  adminPlataformaEmpresas: () => ["admin-plataforma", "empresas"] as const,
+  adminPlataformaSuportes: () => ["admin-plataforma", "suportes"] as const,
 };

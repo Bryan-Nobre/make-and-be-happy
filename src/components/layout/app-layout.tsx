@@ -1,15 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Boxes,
   ChefHat,
-  ChevronDown,
   ClipboardList,
   LayoutDashboard,
   LifeBuoy,
   Lock,
   LogOut,
   Menu,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
+  Shield,
+  Sun,
   UtensilsCrossed,
   Wallet,
 } from "lucide-react";
@@ -35,13 +40,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSouAdminPlataforma } from "@/hooks/use-admin-plataforma";
 import { useSessaoAberta } from "@/hooks/use-caixa";
 import { mensagemDeErro } from "@/lib/erros";
 import { MODULOS_DE_GESTAO, PAPEL_LABEL, type ModuloKey } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 import { useEmpresa } from "@/providers/empresa";
 import { useFilaOffline } from "@/providers/fila-offline";
+import { useMenuLayout } from "@/providers/menu-layout";
+import { useTema } from "@/providers/tema";
 import { sair } from "@/services/auth";
+
+const LARGURA_EXPANDIDO = "w-[280px]";
+const LARGURA_RECOLHIDO = "w-[72px]";
+const PADDING_EXPANDIDO = "lg:pl-[280px]";
+const PADDING_RECOLHIDO = "lg:pl-[72px]";
 
 type NavItem = {
   label: string;
@@ -59,6 +73,7 @@ const OPERACAO: NavItem[] = [
   { label: "Mesas", to: "/mesas", icon: UtensilsCrossed, modulos: ["mesas"] },
   { label: "Cozinha", to: "/cozinha", icon: ChefHat, modulos: ["cozinha"] },
   { label: "Caixa", to: "/caixa", icon: Wallet, modulos: ["caixa"] },
+  { label: "Estoque", to: "/estoque", icon: Boxes, modulos: ["estoque"] },
 ];
 
 const SISTEMA: NavItem[] = [
@@ -67,7 +82,7 @@ const SISTEMA: NavItem[] = [
     to: "/configuracoes",
     icon: Settings,
     modulos: MODULOS_DE_GESTAO,
-    ativoEm: ["/produtos", "/estoque", "/clientes", "/relatorios"],
+    ativoEm: ["/produtos", "/clientes", "/relatorios"],
   },
   { label: "Central de ajuda", to: "/ajuda", icon: LifeBuoy, modulos: [] },
 ];
@@ -84,11 +99,12 @@ const PAGINAS: Record<string, Pagina> = {
   "/caixa": { titulo: "Caixa" },
   "/configuracoes": { titulo: "Configurações" },
   "/produtos": { titulo: "Produtos", pai: PAI_CONFIGURACOES },
-  "/estoque": { titulo: "Estoque", pai: PAI_CONFIGURACOES },
+  "/estoque": { titulo: "Estoque" },
   "/estoque/historico": { titulo: "Histórico", pai: { titulo: "Estoque", to: "/estoque" } },
   "/clientes": { titulo: "Clientes", pai: PAI_CONFIGURACOES },
   "/relatorios": { titulo: "Relatórios", pai: PAI_CONFIGURACOES },
   "/ajuda": { titulo: "Central de ajuda" },
+  "/admin": { titulo: "Admin da plataforma" },
 };
 
 const estaAtivo = (item: NavItem, pathname: string) =>
@@ -127,45 +143,63 @@ function useSair() {
   return { saindo, sairDaConta };
 }
 
-function Brand() {
-  return (
-    <Link to="/" className="rounded-lg px-1 py-1">
-      <LogoMarca className="gap-3" tamanho="md" />
-    </Link>
-  );
-}
-
 function NavLinkItem({
   item,
   pathname,
   onNavigate,
+  compacto,
 }: {
   item: NavItem;
   pathname: string;
   onNavigate?: () => void;
+  compacto?: boolean;
 }) {
-  const { podeVer } = useEmpresa();
+  const { podeVer, noMenu } = useEmpresa();
   // Nota: controla apenas a interface; a RLS bloqueia o acesso real aos dados.
+  const noMenuEmpresa = item.modulos.length === 0 || item.modulos.some((m) => noMenu(m));
   const allowed = item.modulos.length === 0 || item.modulos.some(podeVer);
   const active = estaAtivo(item, pathname);
 
+  if (!noMenuEmpresa) return null;
+
+  const link = (
+    <Link
+      to={item.to}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      aria-label={compacto ? item.label : undefined}
+      className={cn(
+        ITEM,
+        ITEM_ESTADO(active),
+        !allowed && "opacity-55",
+        compacto && "justify-center px-0",
+      )}
+    >
+      <item.icon className={ICONE_ESTADO(active)} aria-hidden="true" />
+      {!compacto && (
+        <>
+          <span className="flex-1 truncate">{item.label}</span>
+          {!allowed && (
+            <Lock
+              className="size-3.5 text-muted-foreground"
+              aria-label="Sem permissão para este módulo"
+            />
+          )}
+        </>
+      )}
+    </Link>
+  );
+
   return (
     <li>
-      <Link
-        to={item.to}
-        onClick={onNavigate}
-        aria-current={active ? "page" : undefined}
-        className={cn(ITEM, ITEM_ESTADO(active), !allowed && "opacity-55")}
-      >
-        <item.icon className={ICONE_ESTADO(active)} aria-hidden="true" />
-        <span className="flex-1 truncate">{item.label}</span>
-        {!allowed && (
-          <Lock
-            className="size-3.5 text-muted-foreground"
-            aria-label="Sem permissão para este módulo"
-          />
-        )}
-      </Link>
+      {compacto ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{link}</TooltipTrigger>
+          <TooltipContent side="right">{item.label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        link
+      )}
     </li>
   );
 }
@@ -182,150 +216,189 @@ const ICONE_ESTADO = (active: boolean) =>
     active ? "text-primary-strong" : "text-muted-foreground group-hover:text-foreground",
   );
 
-function Grupo({ titulo, children }: { titulo: string; children: ReactNode }) {
+function Grupo({
+  titulo,
+  compacto,
+  children,
+}: {
+  titulo: string;
+  compacto?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground/80 uppercase">
-        {titulo}
-      </p>
+      {!compacto && (
+        <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground/80 uppercase">
+          {titulo}
+        </p>
+      )}
       <ul className="flex flex-col gap-1.5">{children}</ul>
     </div>
   );
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function LinkAdminPlataforma({
+  pathname,
+  onNavigate,
+  compacto,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  compacto?: boolean;
+}) {
+  const admin = useSouAdminPlataforma();
+  // Nota: só controla a interface; as RPCs exigem admin_plataforma de verdade.
+  if (admin.data !== true) return null;
+
+  const active = pathname === "/admin" || pathname.startsWith("/admin/");
+  const link = (
+    <Link
+      to="/admin"
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      aria-label={compacto ? "Admin da plataforma" : undefined}
+      className={cn(
+        ITEM,
+        ITEM_ESTADO(active),
+        compacto && "justify-center px-0",
+      )}
+    >
+      <Shield className={ICONE_ESTADO(active)} aria-hidden="true" />
+      {!compacto && <span className="flex-1 truncate">Admin da plataforma</span>}
+    </Link>
+  );
+
+  return (
+    <li>
+      {compacto ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{link}</TooltipTrigger>
+          <TooltipContent side="right">Admin da plataforma</TooltipContent>
+        </Tooltip>
+      ) : (
+        link
+      )}
+    </li>
+  );
+}
+
+function SidebarContent({
+  onNavigate,
+  compacto = false,
+  onAlternarCompacto,
+}: {
+  onNavigate?: () => void;
+  compacto?: boolean;
+  onAlternarCompacto?: () => void;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
     <nav aria-label="Navegação principal" className="flex h-full min-h-0 flex-col bg-sidebar">
-      <div className="flex h-16 shrink-0 items-center px-5">
-        <Brand />
+      <div
+        className={cn(
+          "flex h-16 shrink-0 items-center gap-1 border-b border-border/60",
+          compacto ? "justify-center px-2" : "justify-between px-4",
+        )}
+      >
+        <Link to="/" className="min-w-0 rounded-lg px-1 py-1" onClick={onNavigate}>
+          <LogoMarca className="gap-3" tamanho="md" mostrarNome={!compacto} />
+        </Link>
+        {onAlternarCompacto && !compacto && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0"
+            onClick={onAlternarCompacto}
+            aria-label="Recolher menu"
+          >
+            <PanelLeftClose className="size-4" aria-hidden="true" />
+          </Button>
+        )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-4">
-        <Grupo titulo="Operação">
+
+      {compacto && onAlternarCompacto && (
+        <div className="flex justify-center px-2 pt-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-10"
+                onClick={onAlternarCompacto}
+                aria-label="Expandir menu"
+              >
+                <PanelLeftOpen className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Expandir menu</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
+      <div
+        className={cn("min-h-0 flex-1 overflow-y-auto pb-4", compacto ? "px-2 pt-3" : "px-3 pt-5")}
+      >
+        <Grupo titulo="Operação" compacto={compacto}>
           {OPERACAO.map((item) => (
-            <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+            <NavLinkItem
+              key={item.to}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+              compacto={compacto}
+            />
           ))}
         </Grupo>
 
-        {/* No desktop o rodapé de sistema fica abaixo; no mobile tudo entra neste scroll. */}
-        <div className="mt-6 lg:hidden">
-          <Grupo titulo="Sistema">
+        <div className={cn(compacto ? "mt-4" : "mt-6", "lg:hidden")}>
+          <Grupo titulo="Sistema" compacto={compacto}>
             {SISTEMA.map((item) => (
-              <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+              <NavLinkItem
+                key={item.to}
+                item={item}
+                pathname={pathname}
+                onNavigate={onNavigate}
+                compacto={compacto}
+              />
             ))}
+            <LinkAdminPlataforma
+              pathname={pathname}
+              onNavigate={onNavigate}
+              compacto={compacto}
+            />
           </Grupo>
-          <ContaMobile onNavigate={onNavigate} />
+          <ContaLateral onNavigate={onNavigate} compacto={false} />
         </div>
       </div>
 
-      <div className="hidden shrink-0 px-3 pt-4 pb-5 lg:block">
-        <Grupo titulo="Sistema">
+      <div
+        className={cn(
+          "hidden shrink-0 border-t border-border/60 lg:block",
+          compacto ? "p-2" : "px-3 pt-3 pb-4",
+        )}
+      >
+        <Grupo titulo="Sistema" compacto={compacto}>
           {SISTEMA.map((item) => (
-            <NavLinkItem key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+            <NavLinkItem
+              key={item.to}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+              compacto={compacto}
+            />
           ))}
-          <li>
-            <SairBotao />
-          </li>
+          <LinkAdminPlataforma
+            pathname={pathname}
+            onNavigate={onNavigate}
+            compacto={compacto}
+          />
         </Grupo>
+        <ContaLateral compacto={compacto} />
       </div>
     </nav>
-  );
-}
-
-function SairBotao() {
-  const { saindo, sairDaConta } = useSair();
-  return (
-    <button
-      type="button"
-      disabled={saindo}
-      onClick={() => void sairDaConta()}
-      className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
-    >
-      <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
-      <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
-    </button>
-  );
-}
-
-/** Conta, caixa e troca de restaurante — só no drawer mobile. */
-function ContaMobile({ onNavigate }: { onNavigate?: () => void }) {
-  const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa, podeVer } = useEmpresa();
-  const { saindo, sairDaConta } = useSair();
-
-  return (
-    <div className="mt-6 space-y-3 border-t border-border/60 pt-4">
-      {empresa && (
-        <div className="flex items-center gap-2.5 px-3">
-          <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-8" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{empresa.nome}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {nomeUsuario}
-              {papel ? ` · ${PAPEL_LABEL[papel]}` : ""}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {podeVer("caixa") && (
-        <div className="px-3" onClick={onNavigate}>
-          <SeloCaixa />
-        </div>
-      )}
-
-      {vinculos.length > 1 && (
-        <div className="space-y-1.5">
-          <p className="px-3 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground/80 uppercase">
-            Restaurante
-          </p>
-          <ul className="flex flex-col gap-1">
-            {vinculos.map((vinculo) => {
-              const ativo = vinculo.empresa.id === empresa?.id;
-              return (
-                <li key={vinculo.empresa.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      selecionarEmpresa(vinculo.empresa.id);
-                      onNavigate?.();
-                    }}
-                    className={cn(
-                      ITEM,
-                      ativo
-                        ? "bg-primary-soft text-primary-strong"
-                        : "text-foreground/75 hover:bg-muted/70",
-                      "cursor-pointer",
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-left">
-                      {vinculo.empresa.nome}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {PAPEL_LABEL[vinculo.papel]}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <ul className="flex flex-col gap-1.5">
-        <li>
-          <button
-            type="button"
-            disabled={saindo}
-            onClick={() => void sairDaConta()}
-            className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer disabled:opacity-60")}
-          >
-            <LogOut className={ICONE_ESTADO(false)} aria-hidden="true" />
-            <span className="flex-1 truncate text-left">{saindo ? "Saindo…" : "Sair"}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
   );
 }
 
@@ -339,54 +412,180 @@ function iniciais(nome: string) {
     .toUpperCase();
 }
 
-function UserMenu() {
+function BotaoTema({ compacto }: { compacto?: boolean }) {
+  const { escuro, alternar } = useTema();
+  const rotulo = escuro ? "Modo claro" : "Modo escuro";
+
+  if (compacto) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-10"
+            onClick={alternar}
+            aria-label={rotulo}
+            aria-pressed={escuro}
+          >
+            {escuro ? (
+              <Sun className="size-4" aria-hidden="true" />
+            ) : (
+              <Moon className="size-4" aria-hidden="true" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{rotulo}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={alternar}
+      aria-pressed={escuro}
+      className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer")}
+    >
+      {escuro ? (
+        <Sun className={ICONE_ESTADO(false)} aria-hidden="true" />
+      ) : (
+        <Moon className={ICONE_ESTADO(false)} aria-hidden="true" />
+      )}
+      <span className="flex-1 truncate text-left">{rotulo}</span>
+    </button>
+  );
+}
+
+/** Conta do usuário no rodapé da lateral (desktop e drawer mobile). */
+function ContaLateral({ onNavigate, compacto }: { onNavigate?: () => void; compacto?: boolean }) {
   const { nomeUsuario, papel, empresa, vinculos, selecionarEmpresa } = useEmpresa();
   const { saindo, sairDaConta } = useSair();
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-11 gap-2 px-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
-            {iniciais(nomeUsuario)}
-          </span>
-          <span className="hidden text-left leading-tight sm:block">
-            <span className="block text-sm font-medium">{nomeUsuario}</span>
-            <span className="block text-xs text-muted-foreground">
-              {papel ? PAPEL_LABEL[papel] : ""}
-            </span>
-          </span>
-          <ChevronDown
-            className="hidden size-4 text-muted-foreground sm:block"
-            aria-hidden="true"
-          />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        {vinculos.length > 1 && (
-          <>
-            <DropdownMenuLabel>Restaurante</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={empresa?.id ?? ""} onValueChange={selecionarEmpresa}>
-              {vinculos.map((vinculo) => (
-                <DropdownMenuRadioItem key={vinculo.empresa.id} value={vinculo.empresa.id}>
-                  <span className="flex flex-col">
-                    <span className="text-sm">{vinculo.empresa.nome}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {PAPEL_LABEL[vinculo.papel]}
-                    </span>
+  if (compacto) {
+    return (
+      <div className="mt-2 flex flex-col items-center gap-1.5">
+        <BotaoTema compacto />
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-10 rounded-full"
+                  aria-label={`${nomeUsuario}${papel ? ` · ${PAPEL_LABEL[papel]}` : ""}`}
+                >
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
+                    {iniciais(nomeUsuario)}
                   </span>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right">{nomeUsuario}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent side="right" align="end" className="w-64">
+            <DropdownMenuLabel className="font-normal">
+              <span className="block text-sm font-medium">{nomeUsuario}</span>
+              <span className="block text-xs text-muted-foreground">
+                {papel ? PAPEL_LABEL[papel] : ""}
+                {empresa ? ` · ${empresa.nome}` : ""}
+              </span>
+            </DropdownMenuLabel>
+            {vinculos.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Restaurante</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={empresa?.id ?? ""} onValueChange={selecionarEmpresa}>
+                  {vinculos.map((vinculo) => (
+                    <DropdownMenuRadioItem key={vinculo.empresa.id} value={vinculo.empresa.id}>
+                      <span className="flex flex-col">
+                        <span className="text-sm">{vinculo.empresa.nome}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {PAPEL_LABEL[vinculo.papel]}
+                        </span>
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </>
+            )}
             <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem disabled={saindo} onSelect={() => void sairDaConta()}>
-          <LogOut className="size-4" aria-hidden="true" />
-          Sair
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <DropdownMenuItem disabled={saindo} onSelect={() => void sairDaConta()}>
+              <LogOut className="size-4" aria-hidden="true" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-1 border-t border-border/60 pt-3">
+      <BotaoTema />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={cn(ITEM, ITEM_ESTADO(false), "cursor-pointer")}>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-strong">
+              {iniciais(nomeUsuario)}
+            </span>
+            <span className="min-w-0 flex-1 text-left leading-tight">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {nomeUsuario}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {papel ? PAPEL_LABEL[papel] : ""}
+              </span>
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start" className="w-64">
+          {empresa && (
+            <DropdownMenuLabel className="font-normal">
+              <span className="flex items-center gap-2">
+                <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-7" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{empresa.nome}</span>
+                  <span className="block text-xs text-muted-foreground">Restaurante atual</span>
+                </span>
+              </span>
+            </DropdownMenuLabel>
+          )}
+          {vinculos.length > 1 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Trocar restaurante</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={empresa?.id ?? ""} onValueChange={selecionarEmpresa}>
+                {vinculos.map((vinculo) => (
+                  <DropdownMenuRadioItem key={vinculo.empresa.id} value={vinculo.empresa.id}>
+                    <span className="flex flex-col">
+                      <span className="text-sm">{vinculo.empresa.nome}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {PAPEL_LABEL[vinculo.papel]}
+                      </span>
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={saindo}
+            onSelect={() => {
+              onNavigate?.();
+              void sairDaConta();
+            }}
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+            {saindo ? "Saindo…" : "Sair"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -417,81 +616,99 @@ function SeloCaixa() {
   );
 }
 
+function AvisoEmpresaPausada() {
+  const { empresa } = useEmpresa();
+  if (!empresa || empresa.ativa) return null;
+
+  return (
+    <div
+      role="status"
+      className="border-b border-warning/30 bg-warning-soft px-3 py-2 text-center text-sm text-warning-foreground sm:px-4"
+    >
+      Esta empresa está pausada. Membros comuns não a veem; você está acessando como admin da
+      plataforma.
+    </div>
+  );
+}
+
 function Chrome({ modulos, children }: { modulos: readonly ModuloKey[]; children: ReactNode }) {
-  const { empresa, podeVer } = useEmpresa();
+  const { podeVer } = useEmpresa();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const { recolhido, animar, alternar } = useMenuLayout();
   const allowed = modulos.length === 0 || modulos.some(podeVer);
   const pagina = PAGINAS[pathname] ?? { titulo: "Arvon Food" };
   const label = pagina.titulo;
+  const classeAnimacao = animar ? "transition-[width,padding] duration-200" : undefined;
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-[280px] flex-col border-r bg-sidebar lg:flex">
-        <SidebarContent />
-      </aside>
+    <TooltipProvider delayDuration={200}>
+      <div className="min-h-dvh overflow-x-hidden bg-background">
+        <aside
+          className={cn(
+            "fixed inset-y-0 left-0 z-40 hidden flex-col border-r bg-sidebar lg:flex",
+            classeAnimacao,
+            recolhido ? LARGURA_RECOLHIDO : LARGURA_EXPANDIDO,
+          )}
+        >
+          <SidebarContent compacto={recolhido} onAlternarCompacto={alternar} />
+        </aside>
 
-      <div className="min-w-0 lg:pl-[280px]">
-        <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-card px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6 lg:px-8">
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="-ml-1 size-11 shrink-0 lg:hidden">
-                <Menu className="size-5" aria-hidden="true" />
-                <span className="sr-only">Abrir menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-[min(280px,100vw)] max-w-full gap-0 overflow-x-hidden bg-sidebar p-0"
-            >
-              <SheetTitle className="sr-only">Navegação</SheetTitle>
-              <SidebarContent onNavigate={() => setOpen(false)} />
-            </SheetContent>
-          </Sheet>
+        <div
+          className={cn(
+            "min-w-0",
+            classeAnimacao,
+            recolhido ? PADDING_RECOLHIDO : PADDING_EXPANDIDO,
+          )}
+        >
+          <AvisoEmpresaPausada />
+          <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-card px-3 sm:h-16 sm:gap-3 sm:px-4 md:px-6 lg:px-8">
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="-ml-1 size-11 shrink-0 lg:hidden">
+                  <Menu className="size-5" aria-hidden="true" />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[min(280px,100vw)] max-w-full gap-0 overflow-x-hidden bg-sidebar p-0"
+              >
+                <SheetTitle className="sr-only">Navegação</SheetTitle>
+                <SidebarContent onNavigate={() => setOpen(false)} />
+              </SheetContent>
+            </Sheet>
 
-          {/* No mobile o título fica só no menu; no desktop mostra o caminho da página. */}
-          <p className="hidden min-w-0 flex-1 items-center gap-2 text-sm lg:flex">
-            {empresa && (
-              <>
-                <LogoEmpresa nome={empresa.nome} logoUrl={empresa.logoUrl} className="size-7" />
-                <span className="truncate text-muted-foreground">{empresa.nome}</span>
-                <span aria-hidden="true" className="text-border">
-                  /
-                </span>
-              </>
-            )}
-            {pagina.pai && (
-              <>
-                <Link
-                  to={pagina.pai.to}
-                  className="truncate text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {pagina.pai.titulo}
-                </Link>
-                <span aria-hidden="true" className="text-border">
-                  /
-                </span>
-              </>
-            )}
-            <span className="truncate font-medium text-foreground">{label}</span>
-          </p>
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+              {pagina.pai ? (
+                <>
+                  <Link
+                    to={pagina.pai.to}
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {pagina.pai.titulo}
+                  </Link>
+                  <span aria-hidden="true" className="mx-1.5 text-border">
+                    /
+                  </span>
+                </>
+              ) : null}
+              {label}
+            </p>
 
-          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
-            <IndicadorConexao />
-            <PainelPendencias />
-            {/* Caixa e conta só no header do desktop; no celular ficam no hamburger. */}
-            <div className="hidden items-center gap-2 lg:flex">
-              {empresa && podeVer("caixa") && <SeloCaixa />}
-              <UserMenu />
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <IndicadorConexao />
+              <PainelPendencias />
+              {podeVer("caixa") && <SeloCaixa />}
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main className="mx-auto w-full max-w-full min-w-0 overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:w-[90%] lg:px-0">
-          {allowed ? children : <PermissionDenied label={label} />}
-        </main>
+          <main className="mx-auto w-full max-w-full min-w-0 overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:w-[90%] lg:px-0">
+            {allowed ? children : <PermissionDenied label={label} />}
+          </main>
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
